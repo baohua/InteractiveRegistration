@@ -32,7 +32,7 @@ template< class TScalarType,
           unsigned int NDimensions >
 PolyAffineTransform< TScalarType, NDimensions >
 ::PolyAffineTransform():
-  Superclass()
+  Superclass(0)
 {
 }
 
@@ -419,7 +419,7 @@ void
 PolyAffineTransform< TScalarType, NDimensions >
 ::InitializeImageDomain()
 {
-  int cornerNum = 1 >> NDimensions;
+  int cornerNum = 1 << NDimensions;
 
   IndexType firstCorner, corner, start;
   ContinuousIndexType mappedCorner, minIndex, maxIndex; 
@@ -437,8 +437,8 @@ PolyAffineTransform< TScalarType, NDimensions >
   firstDirection = firstMask->GetDirection();
 
   //compute the minimum diagonal spacing from all transforms
-  firstSpacing = this->GetDiagonalSpacing(firstMask);
-  firstDiagSpacing = firstSpacing.GetNorm();
+  firstSpacing = firstMask->GetSpacing();
+  firstDiagSpacing = this->GetDiagonalSpacing(firstMask);
   minDiagSpacing = firstDiagSpacing;
 
   //minIndex and maxIndex are in the first image domain
@@ -538,6 +538,7 @@ PolyAffineTransform< TScalarType, NDimensions >
   interpolator->SetInputImage(mask);
 
   TrajectoryImagePointer traj = TrajectoryImageType::New();
+  traj->SetRegions(this->m_ImageDomain->GetLargestPossibleRegion());
   traj->CopyInformation(this->m_ImageDomain);
   traj->Allocate();
 
@@ -743,6 +744,7 @@ PolyAffineTransform< TScalarType, NDimensions >
     }
 
   this->m_VelocityField = DisplacementFieldType::New();
+  this->m_VelocityField->SetRegions(this->m_ImageDomain->GetLargestPossibleRegion());
   this->m_VelocityField->CopyInformation(this->m_ImageDomain);
   this->m_VelocityField->Allocate();
 

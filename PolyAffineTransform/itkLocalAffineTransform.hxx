@@ -62,6 +62,7 @@ LocalAffineTransform< TScalarType, NDimensions >::ComputePrincipalLogorithm()
   MatrixType mat = this->GetMatrix();
   OutputVectorType offset = GetOffset();
 
+  homoMat.fill(0.0);
   for (unsigned int i=0; i<NDimensions; i++)
     {
     for (unsigned int j=0; j<NDimensions; j++)
@@ -72,6 +73,7 @@ LocalAffineTransform< TScalarType, NDimensions >::ComputePrincipalLogorithm()
     }
   homoMat[NDimensions][NDimensions] = 1;
 
+  std::cout << "homoMat = " << homoMat << std::endl;
   vnl_matrix<TScalarType> logMat = sdtools::GetLogarithm(homoMat);
 
   MatrixType vmat;
