@@ -697,6 +697,25 @@ PolyAffineTransform< TScalarType, NDimensions >
   filter->Update();
 
   WeightImagePointer output = filter->GetOutput();
+  TScalarType weight, distance;
+
+  typedef ImageRegionIteratorWithIndex< WeightImageType > IteratorType;
+  IteratorType it( output, output->GetLargestPossibleRegion() );
+
+  for( it.GoToBegin(); !it.IsAtEnd(); ++it )
+    {
+    distance = it.Get();
+    if (distance > 0) 
+      {
+      weight = vcl_exp(-distance); //weight decreases with distance
+      }
+    else
+      {
+      weight = 1;
+      }
+    it.Set(weight);
+    }
+
   return output;
 }
 
