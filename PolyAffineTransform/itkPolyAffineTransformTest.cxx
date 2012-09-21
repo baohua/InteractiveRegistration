@@ -123,8 +123,8 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   typedef  itk::Matrix<double, Dimension, Dimension> MatrixType;
   typedef  itk::Vector<double, Dimension> VectorType;
   VectorType affineOffset1, affineOffset2;
-  affineOffset1[0] = -30;
-  affineOffset1[1] = 0;
+  affineOffset1[0] = 30;
+  affineOffset1[1] = 30;
   affineOffset2[0] = 0;
   affineOffset2[1] = 30;
   localTransform1->SetOffset(affineOffset1);
