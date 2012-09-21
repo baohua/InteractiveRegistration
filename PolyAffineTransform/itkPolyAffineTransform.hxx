@@ -557,7 +557,6 @@ PolyAffineTransform< TScalarType, NDimensions >
       if (maskValue > 0)
         {
         timeStamp = 1; //forebround
-
         }
       }
     it.Set(timeStamp);

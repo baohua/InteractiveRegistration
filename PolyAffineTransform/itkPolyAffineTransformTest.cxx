@@ -22,12 +22,78 @@
  * Tests are disabled since it requires some image files as input.
  */
 
+#include <string.h>
+
 #include "itkPolyAffineTransform.h"
 #include "itkImageFileWriter.h"
 #include "itkGroupSpatialObject.h"
 #include "itkBoxSpatialObject.h"
 
 using namespace itk;
+
+template< class TField>
+void WriteDisplacementField(typename TField::Pointer field, char *fname)
+{
+  const unsigned int ImageDimension = TField::ImageDimension;
+  typedef TField::PixelType VectorType;
+  typedef TField::IndexType IndexType;
+  typedef VectorType::ValueType ScalarType;  
+
+  typedef itk::Image<ScalarType, ImageDimension> ScalarImageType;
+  typedef itk::ImageFileWriter<ScalarImageType> WriterType;
+
+  char *dotPtr = strrchr(fname, '.');
+  int  dotPos = dotPtr - fname;
+  char prefix[256], splitName[256];
+
+  strcpy_s(prefix, fname);
+  prefix[dotPos] = '\0';
+
+  typedef ImageRegionIteratorWithIndex< TField > IteratorType;
+  IteratorType it( field, field->GetLargestPossibleRegion() );
+
+  VectorType vec;
+  IndexType index;
+  
+  std::vector<ScalarImageType::Pointer> imageVector(ImageDimension);
+  for (unsigned int i=0; i<ImageDimension; i++)
+    {
+    ScalarImageType::Pointer image = ScalarImageType::New();
+    imageVector[i] = image;
+    imageVector[i]->SetRegions(field->GetLargestPossibleRegion());
+    imageVector[i]->CopyInformation(field);
+    imageVector[i]->Allocate();
+    }
+
+  for( it.GoToBegin(); !it.IsAtEnd(); ++it )
+    {
+    vec = it.Get();
+    index = it.GetIndex();
+    for (unsigned int i=0; i<ImageDimension; i++)
+      {
+      imageVector[i]->SetPixel(index, vec[i]);
+      }
+    }
+
+  for (unsigned int d=0; d<ImageDimension; d++)
+    {
+    sprintf_s(splitName, "%s%d%s", prefix, d, dotPtr);
+
+    WriterType::Pointer writer = WriterType::New();
+    writer->SetInput(imageVector[d]);
+    writer->SetFileName( splitName );
+    try
+      {
+      writer->Update();
+      }
+    catch ( itk::ExceptionObject & e )
+      {
+      std::cerr << "Exception detected while generating displacement field" << splitName;
+      std::cerr << " : "  << e.GetDescription();
+      }     
+    
+    }
+}
 
 int itkPolyAffineTransformTest(int argc, char *argv[])
 {
@@ -57,10 +123,10 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   typedef  itk::Matrix<double, Dimension, Dimension> MatrixType;
   typedef  itk::Vector<double, Dimension> VectorType;
   VectorType affineOffset1, affineOffset2;
-  affineOffset1[0] = -10;
+  affineOffset1[0] = -30;
   affineOffset1[1] = 0;
-  affineOffset2[0] = 10;
-  affineOffset2[1] = 0;
+  affineOffset2[0] = 0;
+  affineOffset2[1] = 30;
   localTransform1->SetOffset(affineOffset1);
   localTransform2->SetOffset(affineOffset2);
 
@@ -95,7 +161,7 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   box2->ComputeObjectToWorldTransform();
 
   MaskImageType::SizeType size;
-  size.Fill(100);
+  size.Fill(128);
   localTransform1->SetMaskImageFromSpatialObject<SceneType>(scene1, size);
   localTransform2->SetMaskImageFromSpatialObject<SceneType>(scene2, size);
 
@@ -118,6 +184,8 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
     std::cerr << " : "  << e.GetDescription();
     return EXIT_FAILURE;
     }
+  
+  WriteDisplacementField<DisplacementFieldType>(displacementField, argv[1]);
 
   std::cout << "Test PASSED." << std::endl;
 
