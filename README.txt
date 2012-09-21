@@ -6,7 +6,7 @@ Links
 -----
 
 * Homepage: http://picsl.upenn.edu
-* Contact: baowu99@gmail.com
+* Contact: PICSL Lab, University of Pennsylvania
 
 About
 -----
