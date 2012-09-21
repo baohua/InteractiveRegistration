@@ -31,9 +31,10 @@ namespace itk
 /**
  * Affine transformation with local control points.
  *
- * This class serves PolyAffineTransform by attaching control points to
+ * This class serves PolyAffineTransform by attaching an impact region to
  * AffineTransform. It computes the principal logorithm of the homogenous
- * matrix which will be used for the velocity field.
+ * matrix which will be used for the velocity field. The impact region is
+ * defined by a SpatialObject or an image mask.
  *
  * There are two template parameters for this class:
  *

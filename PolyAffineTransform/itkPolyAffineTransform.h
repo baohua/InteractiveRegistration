@@ -30,9 +30,9 @@ namespace itk
 {
 /**
  * PolyAffineTransform is a diffeomorphic transform that combines several
- * affine transforms. Each affine transform is defined by a
- * MatrixOffsetTransformBase and its impact region is given by some
- * control points and their target positions.
+ * local affine transforms. Each local affine transform is inherited from
+ * itk::AffineTransform and is given an initial impact region designated
+ * by a spatial object or an image mask.
  *
  * \ingroup Transforms
  *

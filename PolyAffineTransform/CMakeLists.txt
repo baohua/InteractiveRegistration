@@ -14,13 +14,6 @@ add_executable(itkLocalAffineTransformTest itkLocalAffineTransformTest.cxx
                itkLocalAffineTransform.h itkLocalAffineTransform.hxx)
 target_link_libraries(itkLocalAffineTransformTest ${ITK_LIBRARIES})
 
-# add the executable
-add_executable(itkTransformToDisplacementFieldSourceTest
-               itkTransformToDisplacementFieldSourceTest.cxx
-               itkTransformToDisplacementFieldSource.h
-               itkTransformToDisplacementFieldSource.hxx)
-target_link_libraries(itkTransformToDisplacementFieldSourceTest ${ITK_LIBRARIES})
-
 # add package
 set(CPACK_PACKAGE_NAME "InteractiveRegistration")
 set(CPACK_PACKAGE_VENDOR "CMake.org")
