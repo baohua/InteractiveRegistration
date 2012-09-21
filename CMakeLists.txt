@@ -11,5 +11,9 @@ project(${LOCAL_PROJECT_NAME})
 find_package(ITK REQUIRED)
 include(${ITK_USE_FILE})
 
+include(CTest)
+enable_testing()
+
 add_subdirectory(PolyAffineTransform)
+
 
