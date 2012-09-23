@@ -101,7 +101,7 @@ public:
   typedef itk::PointSet<int, NDimensions>               PointSetType;
   typedef typename PointSetType::Pointer                PointSetPointer;
 
-  typedef itk::Image<unsigned short>                    MaskImageType;
+  typedef itk::Image<unsigned short, NDimensions>       MaskImageType;
   typedef typename MaskImageType::Pointer               MaskImagePointer;
 
   typedef typename MaskImageType::SizeType              SizeType;

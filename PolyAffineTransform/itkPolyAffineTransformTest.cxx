@@ -108,7 +108,7 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
 
   //create a deformation field transform
   //typedef TranslationTransform<double, Dimension>
-  const int Dimension = 2;
+  const int Dimension = 3;
 
   typedef itk::PolyAffineTransform<double, Dimension> PolyAffineTransformType;
   typedef PolyAffineTransformType::LocalAffineTransformType LocalAffineTransformType;
@@ -125,8 +125,10 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   VectorType affineOffset1, affineOffset2;
   affineOffset1[0] = 30;
   affineOffset1[1] = 30;
+  affineOffset1[2] = 30;
   affineOffset2[0] = 0;
   affineOffset2[1] = 30;
+  affineOffset2[2] = 0;
   localTransform1->SetOffset(affineOffset1);
   localTransform2->SetOffset(affineOffset2);
 
@@ -142,20 +144,20 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   
   BoxType::SizeType  boxsize1;
   BoxType::SizeType  boxsize2;
-  boxsize1[0] = 30;
-  boxsize1[1] = 30;
+  boxsize1.Fill(30);
   box1->SetSize( boxsize1 );
-  boxsize2[0] = 30;
-  boxsize2[1] = 30;
+  boxsize2.Fill(30);
   box2->SetSize( boxsize2 );
 
   BoxType::TransformType::OffsetType offset1;
   BoxType::TransformType::OffsetType offset2;
   offset1[0] = 50.0;
   offset1[1] = 10.0;
+  offset1[2] = 10.0;
   box1->GetObjectToParentTransform()->SetOffset( offset1 );
   box1->ComputeObjectToWorldTransform();
   offset2[0] = 10.0;
+  offset2[1] = 50.0;
   offset2[1] = 50.0;
   box2->GetObjectToParentTransform()->SetOffset( offset2 );
   box2->ComputeObjectToWorldTransform();
