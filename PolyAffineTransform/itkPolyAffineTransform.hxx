@@ -417,7 +417,7 @@ template< class TScalarType,
           unsigned int NDimensions >
 void
 PolyAffineTransform< TScalarType, NDimensions >
-::InitializeImageDomain()
+::InitializeBoundaryMask()
 {
   int cornerNum = 1 << NDimensions;
 
@@ -505,17 +505,19 @@ PolyAffineTransform< TScalarType, NDimensions >
     size[d] = 1 + (SizeValueType)(maxIndex[d] - minIndex[d] + 0.5);
     }
 
-  this->m_ImageDomain = MaskImageType::New();
-  this->m_ImageDomain->SetOrigin(origin);
-  this->m_ImageDomain->SetDirection(firstDirection);
-  this->m_ImageDomain->SetSpacing(spacing);
+  this->m_BoundaryMask = MaskImageType::New();
+  this->m_BoundaryMask->SetOrigin(origin);
+  this->m_BoundaryMask->SetDirection(firstDirection);
+  this->m_BoundaryMask->SetSpacing(spacing);
 
   start.Fill( 0 );
   region.SetSize( size );
   region.SetIndex( start );
-  this->m_ImageDomain->SetRegions( region );
+  this->m_BoundaryMask->SetRegions( region );
 
-  this->m_ImageDomain->Allocate();  
+  this->m_BoundaryMask->Allocate();  
+
+  this->m_BoundaryMask->FillBuffer(1);
 
 }
 
@@ -538,8 +540,8 @@ PolyAffineTransform< TScalarType, NDimensions >
   interpolator->SetInputImage(mask);
 
   TrajectoryImagePointer traj = TrajectoryImageType::New();
-  traj->SetRegions(this->m_ImageDomain->GetLargestPossibleRegion());
-  traj->CopyInformation(this->m_ImageDomain);
+  traj->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
+  traj->CopyInformation(this->m_BoundaryMask);
   traj->Allocate();
 
   typedef ImageRegionIteratorWithIndex< TrajectoryImageType > IteratorType;
@@ -584,13 +586,13 @@ PolyAffineTransform< TScalarType, NDimensions >
   interpolator->SetInputImage(mask);
 
   typedef ImageRegionIteratorWithIndex< MaskImageType > IteratorType;
-  IteratorType it( this->m_ImageDomain, 
-    this->m_ImageDomain->GetLargestPossibleRegion() );
+  IteratorType it( this->m_BoundaryMask, 
+    this->m_BoundaryMask->GetLargestPossibleRegion() );
 
   for( it.GoToBegin(); !it.IsAtEnd(); ++it )
     {
     index = it.GetIndex();
-    this->m_ImageDomain->TransformIndexToPhysicalPoint( index, point );
+    this->m_BoundaryMask->TransformIndexToPhysicalPoint( index, point );
 
     if( interpolator->IsInsideBuffer( point ) )
       {
@@ -632,7 +634,7 @@ PolyAffineTransform< TScalarType, NDimensions >
   FrontierType *frontierNow, *frontierNext;
   this->InitializeFrontier(transformId, frontier0);
 
-  MaskImagePointer domain = this->m_ImageDomain;
+  MaskImagePointer domain = this->m_BoundaryMask;
 	for (int ts=0; ts<N; ts++)
     {
     if (ts % 2 == 0) 
@@ -685,12 +687,62 @@ template< class TScalarType,
           unsigned int NDimensions >
 typename PolyAffineTransform< TScalarType, NDimensions >::WeightImagePointer
 PolyAffineTransform< TScalarType, NDimensions >
-::ComputeWeightImage(unsigned int transformId,
-                     TrajectoryImagePointer traj)
+::ComputeTrajectoryWeightImage(TrajectoryImagePointer traj,
+                               WeightImagePointer boundaryWeightImage)
 {
+  typedef itk::SignedMaurerDistanceMapImageFilter
+    <TrajectoryImageType, WeightImageType>                     DistanceMapImageFilterType;
+  typedef typename DistanceMapImageFilterType::Pointer         DistanceMapImageFilterPointer;
+
   DistanceMapImageFilterPointer filter = DistanceMapImageFilterType::New();
     
   filter->SetInput( traj );
+  filter->SetSquaredDistance( false );
+  filter->SetUseImageSpacing( true );
+  filter->SetInsideIsPositive( false );
+  filter->Update();
+
+  WeightImagePointer output = filter->GetOutput();
+  TScalarType weight, distance, boundaryWeight;
+  IndexType index;
+
+  typedef ImageRegionIteratorWithIndex< WeightImageType > IteratorType;
+  IteratorType it( output, output->GetLargestPossibleRegion() );
+
+  for( it.GoToBegin(); !it.IsAtEnd(); ++it )
+    {
+    distance = it.Get();
+    index = it.GetIndex();
+    boundaryWeight = boundaryWeightImage->GetPixel(index);
+
+    if (distance > 0) 
+      {
+      weight = vcl_exp(-distance); //weight decreases with distance
+      weight *= boundaryWeight;
+      }
+    else
+      {
+      weight = 1;
+      }
+    it.Set(weight);
+    }
+
+  return output;
+}
+
+template< class TScalarType,
+          unsigned int NDimensions >
+typename PolyAffineTransform< TScalarType, NDimensions >::WeightImagePointer
+PolyAffineTransform< TScalarType, NDimensions >
+::ComputeBoundaryWeightImage()
+{
+  typedef itk::SignedMaurerDistanceMapImageFilter
+    <MaskImageType, WeightImageType>                           DistanceMapImageFilterType;
+  typedef typename DistanceMapImageFilterType::Pointer         DistanceMapImageFilterPointer;
+
+  DistanceMapImageFilterPointer filter = DistanceMapImageFilterType::New();
+    
+  filter->SetInput( this->m_BoundaryMask );
   filter->SetSquaredDistance( false );
   filter->SetUseImageSpacing( true );
   filter->SetInsideIsPositive( false );
@@ -705,13 +757,14 @@ PolyAffineTransform< TScalarType, NDimensions >
   for( it.GoToBegin(); !it.IsAtEnd(); ++it )
     {
     distance = it.Get();
-    if (distance > 0) 
+
+    if (distance < 0) //inside points have negative distance
       {
-      weight = vcl_exp(-distance); //weight decreases with distance
+      weight = 1 - vcl_exp(distance); //weight increases with abs(distance)
       }
     else
       {
-      weight = 1;
+      weight = 0;
       }
     it.Set(weight);
     }
@@ -730,21 +783,25 @@ PolyAffineTransform< TScalarType, NDimensions >
     return;
     }
 
-  this->InitializeImageDomain();
+  this->InitializeBoundaryMask();
 
   unsigned int transformNumber = this->m_LocalAffineTransformVector.size();
-  this->m_WeightImageVector.resize(transformNumber);
+  this->m_TrajectoryWeightImageVector.resize(transformNumber);
   this->m_TrajectoryImageVector.resize(transformNumber);
 
+  this->m_BoundaryWeightImage = 
+    this->ComputeBoundaryWeightImage();
   for (unsigned int t=0; t<transformNumber; t++)
     {
     this->m_TrajectoryImageVector[t] = this->ComputeTrajectory(t);
-    this->m_WeightImageVector[t] = this->ComputeWeightImage(t, this->m_TrajectoryImageVector[t]);
+    this->m_TrajectoryWeightImageVector[t] =
+      this->ComputeTrajectoryWeightImage(this->m_TrajectoryImageVector[t],
+                                         this->m_BoundaryWeightImage);
     }
 
   this->m_VelocityField = DisplacementFieldType::New();
-  this->m_VelocityField->SetRegions(this->m_ImageDomain->GetLargestPossibleRegion());
-  this->m_VelocityField->CopyInformation(this->m_ImageDomain);
+  this->m_VelocityField->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
+  this->m_VelocityField->CopyInformation(this->m_BoundaryMask);
   this->m_VelocityField->Allocate();
 
   typedef typename LocalAffineTransformType::VelocityAffineTransformType 
@@ -755,7 +812,7 @@ PolyAffineTransform< TScalarType, NDimensions >
   PointType point, velocity;
   typename DisplacementFieldType::PixelType velocitySum;
   IndexType index;
-  TScalarType weight;
+  TScalarType weightTraj;
 
   typedef ImageRegionIteratorWithIndex< DisplacementFieldType > IteratorType;
   IteratorType it( this->m_VelocityField, this->m_VelocityField->GetLargestPossibleRegion() );
@@ -772,10 +829,11 @@ PolyAffineTransform< TScalarType, NDimensions >
       VelocityAffineTransformPointer localVelocity = localAffine->GetVelocityAffineTransform();
 
       velocity = localVelocity->TransformPoint(point);
-      weight = this->m_WeightImageVector[i]->GetPixel(index);
+      weightTraj = this->m_TrajectoryWeightImageVector[i]->GetPixel(index);
+
       for (unsigned int j=0; j<NDimensions; j++)
         {
-        velocitySum[j] += weight * velocity[j];
+        velocitySum[j] += weightTraj * velocity[j];
         }
       }
     it.Set(velocitySum);

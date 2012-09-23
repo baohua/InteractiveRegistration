@@ -173,10 +173,6 @@ public:
   typedef itk::Image<int, NDimensions>                         TrajectoryImageType;
   typedef typename TrajectoryImageType::Pointer                TrajectoryImagePointer;
 
-  typedef itk::SignedMaurerDistanceMapImageFilter
-    <TrajectoryImageType, WeightImageType>                     DistanceMapImageFilterType;
-  typedef typename DistanceMapImageFilterType::Pointer         DistanceMapImageFilterPointer;
-
   typedef itk::ExponentialDisplacementFieldImageFilter
     <DisplacementFieldType, DisplacementFieldType>             ExponentialImageFilterType;
   typedef typename ExponentialImageFilterType::Pointer         ExponentialImageFilterPointer;
@@ -309,11 +305,13 @@ public:
   }
 
   TScalarType GetDiagonalSpacing(MaskImagePointer mask);
-  void InitializeImageDomain();
+  void InitializeBoundaryMask();
   TrajectoryImagePointer InitializeTrajectory(unsigned int transformId);
   void InitializeFrontier(unsigned int transformId, FrontierType &frontier);
   TrajectoryImagePointer ComputeTrajectory(unsigned int transformId);
-  WeightImagePointer ComputeWeightImage(unsigned int transformId, TrajectoryImagePointer traj);
+  WeightImagePointer ComputeTrajectoryWeightImage(TrajectoryImagePointer traj,
+                                                  WeightImagePointer boundaryWeightImage);
+  WeightImagePointer ComputeBoundaryWeightImage();
   void ComputeVelocityField();
   DisplacementFieldType* GetExponentialDisplacementField();
 
@@ -341,7 +339,7 @@ private:
   unsigned int                              m_TimeStampNumber;
   unsigned int                              m_TimeStampLog;
 
-  MaskImagePointer                          m_ImageDomain;
+  MaskImagePointer                          m_BoundaryMask;
 
   //Merged velocity field
   DisplacementFieldPointer                  m_VelocityField;
@@ -352,7 +350,8 @@ private:
   
   TrajectoryImageVectorType                 m_TrajectoryImageVector;
 
-  WeightImageVectorType                     m_WeightImageVector;
+  WeightImageVectorType                     m_TrajectoryWeightImageVector;
+  WeightImagePointer                        m_BoundaryWeightImage;
 
 }; //class PolyAffineTransform
 }  // namespace itk
