@@ -28,76 +28,12 @@
 #include "itkImageFileWriter.h"
 #include "itkGroupSpatialObject.h"
 #include "itkBoxSpatialObject.h"
+#include "itkDebugHelper.h"
 
 using namespace itk;
 
-template< class TField>
-void WriteDisplacementField(typename TField::Pointer field, char *fname)
-{
-  const unsigned int ImageDimension = TField::ImageDimension;
-  typedef TField::PixelType VectorType;
-  typedef TField::IndexType IndexType;
-  typedef VectorType::ValueType ScalarType;  
-
-  typedef itk::Image<ScalarType, ImageDimension> ScalarImageType;
-  typedef itk::ImageFileWriter<ScalarImageType> WriterType;
-
-  char *dotPtr = strrchr(fname, '.');
-  int  dotPos = dotPtr - fname;
-  char prefix[256], splitName[256];
-
-  strcpy_s(prefix, fname);
-  prefix[dotPos] = '\0';
-
-  typedef ImageRegionIteratorWithIndex< TField > IteratorType;
-  IteratorType it( field, field->GetLargestPossibleRegion() );
-
-  VectorType vec;
-  IndexType index;
-  
-  std::vector<ScalarImageType::Pointer> imageVector(ImageDimension);
-  for (unsigned int i=0; i<ImageDimension; i++)
-    {
-    ScalarImageType::Pointer image = ScalarImageType::New();
-    imageVector[i] = image;
-    imageVector[i]->SetRegions(field->GetLargestPossibleRegion());
-    imageVector[i]->CopyInformation(field);
-    imageVector[i]->Allocate();
-    }
-
-  for( it.GoToBegin(); !it.IsAtEnd(); ++it )
-    {
-    vec = it.Get();
-    index = it.GetIndex();
-    for (unsigned int i=0; i<ImageDimension; i++)
-      {
-      imageVector[i]->SetPixel(index, vec[i]);
-      }
-    }
-
-  for (unsigned int d=0; d<ImageDimension; d++)
-    {
-    sprintf_s(splitName, "%s%d%s", prefix, d, dotPtr);
-
-    WriterType::Pointer writer = WriterType::New();
-    writer->SetInput(imageVector[d]);
-    writer->SetFileName( splitName );
-    try
-      {
-      writer->Update();
-      }
-    catch ( itk::ExceptionObject & e )
-      {
-      std::cerr << "Exception detected while generating displacement field" << splitName;
-      std::cerr << " : "  << e.GetDescription();
-      }     
-    
-    }
-}
-
 int itkPolyAffineTransformTest(int argc, char *argv[])
 {
-
   if( argc < 2 )
     {
     std::cerr << "Missing Parameters " << std::endl;
@@ -123,12 +59,13 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   typedef  itk::Matrix<double, Dimension, Dimension> MatrixType;
   typedef  itk::Vector<double, Dimension> VectorType;
   VectorType affineOffset1, affineOffset2;
-  affineOffset1[0] = 30;
-  affineOffset1[1] = 30;
-  affineOffset1[2] = 30;
-  affineOffset2[0] = 0;
-  affineOffset2[1] = 30;
-  affineOffset2[2] = 0;
+  double translation1[] = {30, 30, 30};
+  double translation2[] = { 0, 30,  0};
+  for (unsigned int d=0; d<Dimension; d++)
+    {
+    affineOffset1[d] = translation1[d];
+    affineOffset2[d] = translation2[d];
+    }
   localTransform1->SetOffset(affineOffset1);
   localTransform2->SetOffset(affineOffset2);
 
@@ -142,24 +79,25 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   scene1->AddSpatialObject(box1);
   scene2->AddSpatialObject(box2);
   
-  BoxType::SizeType  boxsize1;
-  BoxType::SizeType  boxsize2;
+  BoxType::SizeType boxsize1;
+  BoxType::SizeType boxsize2;
   boxsize1.Fill(30);
   box1->SetSize( boxsize1 );
   boxsize2.Fill(30);
   box2->SetSize( boxsize2 );
 
-  BoxType::TransformType::OffsetType offset1;
-  BoxType::TransformType::OffsetType offset2;
-  offset1[0] = 50.0;
-  offset1[1] = 10.0;
-  offset1[2] = 10.0;
-  box1->GetObjectToParentTransform()->SetOffset( offset1 );
+  BoxType::TransformType::OffsetType boxOffset1;
+  BoxType::TransformType::OffsetType boxOffset2;
+  double offset1[] = {50.0, 10.0, 10.0};
+  double offset2[] = {10.0, 50.0, 50.0};
+  for (unsigned int d=0; d<Dimension; d++)
+    {
+    boxOffset1[d] = offset1[d];
+    boxOffset2[d] = offset2[d];
+    }
+  box1->GetObjectToParentTransform()->SetOffset( boxOffset1 );
   box1->ComputeObjectToWorldTransform();
-  offset2[0] = 10.0;
-  offset2[1] = 50.0;
-  offset2[1] = 50.0;
-  box2->GetObjectToParentTransform()->SetOffset( offset2 );
+  box2->GetObjectToParentTransform()->SetOffset( boxOffset2 );
   box2->ComputeObjectToWorldTransform();
 
   MaskImageType::SizeType size;
@@ -187,7 +125,8 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
     return EXIT_FAILURE;
     }
   
-  WriteDisplacementField<DisplacementFieldType>(displacementField, argv[1]);
+  itk::DebugHelper::WriteDisplacementField<DisplacementFieldType>
+    (displacementField, argv[1]);
 
   std::cout << "Test PASSED." << std::endl;
 

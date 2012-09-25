@@ -625,6 +625,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 ::ComputeTrajectory(unsigned int transformId)
 {
   int N = this->m_TimeStampNumber;
+
   LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[transformId];
 
   typedef typename LocalAffineTransformType::VelocityAffineTransformPointer VelocityAffineTransformPointer;
@@ -674,6 +675,10 @@ PolyAffineTransform< TScalarType, NDimensions >
         {
         z[d] = y[d] + step[d] / N;
         }
+      double stepLength = 0;
+      for (unsigned int d=0; d<NDimensions; d++) stepLength += step[d]/N*step[d]/N;
+      stepLength = vcl_sqrt(stepLength);
+      std::cout << "stepLength = " << stepLength << std::endl;
       //this->AddSegmentIntoTrajectory(y, z, traj, frontierNext, 0, ts+1);
       IndexType index;
       bool insideImage = traj->TransformPhysicalPointToIndex(z, index);
@@ -682,13 +687,18 @@ PolyAffineTransform< TScalarType, NDimensions >
         if (traj->GetPixel(index) <= 0)
           {
           traj->SetPixel(index, ts+1); //timestamp + 1
-          frontierNext->push_back(z);          }
           }
+        frontierNext->push_back(z);
         }
+      }
     } //for timestamp 0..N
 
-  frontierNext->clear();
-  frontierNow->clear();
+  frontier0.clear();
+  frontier1.clear();
+
+  char fname[256];
+  sprintf_s(fname, "tmpTraj%d.nii", transformId);
+  itk::DebugHelper::WriteImage<TrajectoryImageType>(traj, fname);
 
   return traj;
 }
@@ -861,12 +871,19 @@ PolyAffineTransform< TScalarType, NDimensions >
 
   this->m_BoundaryWeightImage = 
     this->ComputeBoundaryWeightImage();
+  DebugHelper::WriteImage<WeightImageType>
+    (this->m_BoundaryWeightImage, "tmpBoundWeight.nii");
+
   for (unsigned int t=0; t<transformNumber; t++)
     {
     this->m_TrajectoryImageVector[t] = this->ComputeTrajectory(t);
     this->m_TrajectoryWeightImageVector[t] =
       this->ComputeTrajectoryWeightImage(this->m_TrajectoryImageVector[t],
                                          this->m_BoundaryWeightImage);
+    char fname[256];
+    sprintf_s(fname, "tmpTrajWeight%d.nii", t);
+    DebugHelper::WriteImage<WeightImageType>
+      (this->m_TrajectoryWeightImageVector[t], fname);
     }
 
   this->m_VelocityField = DisplacementFieldType::New();
@@ -908,6 +925,8 @@ PolyAffineTransform< TScalarType, NDimensions >
       }
     it.Set(velocitySum);
     }
+  DebugHelper::WriteDisplacementField<DisplacementFieldType>
+    (this->m_VelocityField, "tmpVelo.nii");
 
 }
 
@@ -934,6 +953,7 @@ PolyAffineTransform< TScalarType, NDimensions >
     {
     ExponentialImageFilterPointer filter = ExponentialImageFilterType::New();
     filter->SetInput(this->GetVelocityField());
+
     filter->SetAutomaticNumberOfIterations(true);
     //filter->SetMaximumNumberOfIterations( this->m_TimeStampLog );
     filter->Update();

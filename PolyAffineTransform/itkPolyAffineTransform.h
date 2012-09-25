@@ -19,12 +19,13 @@
 #define __itkPolyAffineTransform_h
 
 #include <iostream>
-
-#include "itkLocalAffineTransform.h"
 #include "itkDisplacementFieldTransform.h"
 #include "itkSignedMaurerDistanceMapImageFilter.h"
 #include "itkNearestNeighborInterpolateImageFunction.h"
 #include "itkExponentialDisplacementFieldImageFilter.h"
+
+#include "itkLocalAffineTransform.h"
+#include "itkDebugHelper.h"
 
 namespace itk
 {
