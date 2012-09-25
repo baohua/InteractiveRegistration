@@ -521,6 +521,10 @@ PolyAffineTransform< TScalarType, NDimensions >
 
 }
 
+/**
+ * Initialize the trajectory of each transform at time stamp 0 according to
+ * the inital spatial object for the local affine transform.
+ */
 template< class TScalarType,
           unsigned int NDimensions >
 typename PolyAffineTransform< TScalarType, NDimensions >::TrajectoryImagePointer
@@ -568,6 +572,11 @@ PolyAffineTransform< TScalarType, NDimensions >
 
 }
 
+/**
+ * Initialize the frontier during trajectory computation. The frontier
+ * contains the points that are in the trajectory, but not have been
+ * processed for its move at the next time stamp.
+ */
 template< class TScalarType,
           unsigned int NDimensions >
 void
@@ -605,6 +614,10 @@ PolyAffineTransform< TScalarType, NDimensions >
 
 }
 
+/**
+ * Compute the trajectory of the spatial object under each transform by
+ * propagation at each time stamp.
+ */
 template< class TScalarType,
           unsigned int NDimensions >
 typename PolyAffineTransform< TScalarType, NDimensions >::TrajectoryImagePointer
@@ -648,7 +661,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 		  frontierNext = &frontier0;
       }
     frontierNext->clear();
-
+    std::cout << "frontNow size = " << frontierNow->size() << std::endl;
 		for (int f=0; f<frontierNow->size(); f++)
       {
 			PointType y = frontierNow->at(f);
@@ -661,26 +674,83 @@ PolyAffineTransform< TScalarType, NDimensions >
         {
         z[d] = y[d] + step[d] / N;
         }
-
+      //this->AddSegmentIntoTrajectory(y, z, traj, frontierNext, 0, ts+1);
       IndexType index;
-      bool insideImage, insideTraj = false;
-
-      insideImage = traj->TransformPhysicalPointToIndex(z, index);
-      if( insideImage )
+      bool insideImage = traj->TransformPhysicalPointToIndex(z, index);
+      if (insideImage)
         {
-        if (traj->GetPixel(index) >= 1)
+        if (traj->GetPixel(index) <= 0)
           {
-          insideTraj = true;
+          traj->SetPixel(index, ts+1); //timestamp + 1
+          frontierNext->push_back(z);          }
           }
         }
-      if (! insideTraj)
-        {
-        traj->SetPixel(index, ts+1); //timestamp + 1
-        frontierNext->push_back(z);
-        }
-      }
     } //for timestamp 0..N
+
+  frontierNext->clear();
+  frontierNow->clear();
+
   return traj;
+}
+
+/**
+ * Given a startPoint and its next move to endPoint. Put all points on the
+ * segment (startPoint, endPoint] to the trajectory and frontier.
+ */
+template< class TScalarType,
+          unsigned int NDimensions >
+void
+PolyAffineTransform< TScalarType, NDimensions >
+::AddSegmentIntoTrajectory(PointType startPoint, PointType endPoint,
+                           TrajectoryImagePointer traj, FrontierType *frontier,
+                           int background, int foreground)
+{
+  ContinuousIndexType middleIndex, startIndex, endIndex;
+  ContinuousIndexType::VectorType diffIndex;
+  PointType middlePoint;
+  IndexType index;
+  RegionType region;
+  bool insideImage;
+  TScalarType maxDiff;
+  unsigned int maxDim;
+
+  traj->TransformPhysicalPointToContinuousIndex(startPoint, startIndex);
+  traj->TransformPhysicalPointToContinuousIndex(endPoint, endIndex);
+
+  diffIndex = endIndex - startIndex;
+  maxDim = 0;
+  maxDiff = vcl_abs(diffIndex[0]);
+  for (unsigned int d=1; d<NDimensions; d++)
+    {
+      if (maxDiff < vcl_abs(diffIndex[d]))
+        {
+        maxDim = d;
+        maxDiff = vcl_abs(diffIndex[d]);
+        }
+    }
+
+  // We need to interpolate the segment along the maxDim-th dimension.
+  ContinuousIndexType::VectorType stepIndex = diffIndex / maxDiff;
+  region = traj->GetLargestPossibleRegion();
+
+  middleIndex = endIndex;
+
+  for (int s=0; s<maxDiff; s++)
+    {
+    index.CopyWithRound(middleIndex);
+    insideImage = region.IsInside(index);
+    if (insideImage && traj->GetPixel(index) == background)
+      {
+      traj->SetPixel(index, foreground); //foreground = timestamp + 1
+      traj->TransformContinuousIndexToPhysicalPoint(middleIndex, middlePoint); 
+      frontier->push_back(middlePoint);      
+      }
+    for (unsigned int d=0; d<NDimensions; d++)
+      {
+      middleIndex[d] = middleIndex[d] - stepIndex[d];      
+      }
+    break;
+    }
 }
 
 template< class TScalarType,
@@ -864,7 +934,8 @@ PolyAffineTransform< TScalarType, NDimensions >
     {
     ExponentialImageFilterPointer filter = ExponentialImageFilterType::New();
     filter->SetInput(this->GetVelocityField());
-    filter->SetMaximumNumberOfIterations( this->m_TimeStampLog );
+    filter->SetAutomaticNumberOfIterations(true);
+    //filter->SetMaximumNumberOfIterations( this->m_TimeStampLog );
     filter->Update();
 
     this->m_DisplacementField = filter->GetOutput();

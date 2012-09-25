@@ -314,6 +314,13 @@ public:
   WeightImagePointer ComputeBoundaryWeightImage();
   void ComputeVelocityField();
   DisplacementFieldType* GetExponentialDisplacementField();
+  /**
+   * Given a startPoint and its next move to endPoint. Put all points on the
+   * segment (startPoint, endPoint] to the trajectory and frontier.
+   */
+  void AddSegmentIntoTrajectory(PointType startPoint, PointType endPoint,
+                           TrajectoryImagePointer traj, FrontierType *frontier,
+                           int background, int foreground);
 
 protected:
   /** Construct an PolyAffineTransform object

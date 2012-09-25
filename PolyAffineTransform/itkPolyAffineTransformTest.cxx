@@ -108,7 +108,7 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
 
   //create a deformation field transform
   //typedef TranslationTransform<double, Dimension>
-  const int Dimension = 3;
+  const int Dimension = 2;
 
   typedef itk::PolyAffineTransform<double, Dimension> PolyAffineTransformType;
   typedef PolyAffineTransformType::LocalAffineTransformType LocalAffineTransformType;
