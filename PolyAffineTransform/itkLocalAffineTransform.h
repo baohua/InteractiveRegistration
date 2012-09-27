@@ -25,6 +25,8 @@
 #include "itkSpatialObject.h"
 #include "itkAffineTransform.h"
 #include "itkSpatialObjectToImageFilter.h"
+#include "itkExtractImageFilter.h"
+#include "itkDebugHelper.h"
 
 namespace itk
 {
@@ -110,27 +112,39 @@ public:
   typedef typename MaskImageType::RegionType            RegionType;
   typedef typename MaskImageType::SpacingType           SpacingType;
   typedef typename MaskImageType::DirectionType         DirectionType;
+  typedef typename itk::ContinuousIndex<TScalarType, NDimensions>
+                                                        ContinuousIndexType;
 
   typedef AffineTransform< TScalarType, NDimensions >   VelocityAffineTransformType;
   typedef VelocityAffineTransformType::Pointer          VelocityAffineTransformPointer;
   virtual VelocityAffineTransformType* GetVelocityAffineTransform();
 
-  void AddControlPoint(const InputPointType point);
+  void AddFixedPoint(const InputPointType point);
   
   /** Set the Mask Image.  */
-  itkSetObjectMacro(MaskImage, MaskImageType);
+  itkSetObjectMacro(FixedMaskImage, MaskImageType);
   /** Get the Mask Image. */
-  itkGetObjectMacro(MaskImage, MaskImageType);
+  itkGetObjectMacro(FixedMaskImage, MaskImageType);
+  /** Set the Mask Image.  */
+  itkSetObjectMacro(MovingMaskImage, MaskImageType);
+  /** Get the Mask Image. */
+  itkGetObjectMacro(MovingMaskImage, MaskImageType);
 
   /** Set the Mask Image from a Spatial Object.  */
   template< class TSpatialObject > 
-  void SetMaskImageFromSpatialObject(TSpatialObject *spatialObject, SizeType size);
+  void ComputeFixedMaskImageFromSpatialObject(TSpatialObject *spatialObject, SizeType size);
   template< class TSpatialObject > 
-  void SetMaskImageFromSpatialObject(TSpatialObject *spatialObject,
-                                SizeType size,
+  void ComputeFixedMaskImageFromSpatialObject(TSpatialObject *spatialObject,
                                 PointType origin,
                                 DirectionType direction,
-                                SpacingType spacing);
+                                SpacingType spacing,
+                                SizeType size);
+  void ComputeMovingMaskImageFromFixedMaskImage();
+
+  template< class TVector >
+  static void CopyWithMax(TVector &maxVec, const TVector &newVec);
+  template< class TVector >
+  static void CopyWithMin(TVector &minVec, const TVector &newVec);
 
 protected:
   /** Construct an LocalAffineTransform object
@@ -159,8 +173,9 @@ private:
   const Self & operator=(const Self &);
 
   VelocityAffineTransformPointer m_VelocityAffineTransform;
-  PointSetPointer m_ControlPointSet;
-  MaskImagePointer m_MaskImage;
+  PointSetPointer m_FixedPointSet;
+  MaskImagePointer m_FixedMaskImage;
+  MaskImagePointer m_MovingMaskImage;
 
 }; //class LocalAffineTransform
 

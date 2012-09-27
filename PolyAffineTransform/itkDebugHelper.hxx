@@ -84,8 +84,8 @@ DebugHelper
     {
     ScalarImageType::Pointer image = ScalarImageType::New();
     imageVector[i] = image;
-    imageVector[i]->SetRegions(field->GetLargestPossibleRegion());
     imageVector[i]->CopyInformation(field);
+    imageVector[i]->SetRegions(field->GetLargestPossibleRegion());
     imageVector[i]->Allocate();
     }
 

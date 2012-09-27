@@ -307,8 +307,8 @@ public:
 
   TScalarType GetDiagonalSpacing(MaskImagePointer mask);
   void InitializeBoundaryMask();
-  TrajectoryImagePointer InitializeTrajectory(unsigned int transformId);
-  void InitializeFrontier(unsigned int transformId, FrontierType &frontier);
+  TrajectoryImagePointer InitializeTrajectory(MaskImagePointer mask);
+  void InitializeFrontier(MaskImagePointer mask, FrontierType &frontier);
   TrajectoryImagePointer ComputeTrajectory(unsigned int transformId);
   WeightImagePointer ComputeTrajectoryWeightImage(TrajectoryImagePointer traj,
                                                   WeightImagePointer boundaryWeightImage);

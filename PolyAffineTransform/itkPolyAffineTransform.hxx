@@ -407,11 +407,13 @@ PolyAffineTransform< TScalarType, NDimensions >
 }
 
 /**
- * Compute the union of the image domains from all transforms.
- * For indexing, use the first image's direction. For spacing,
- * scale the first image's spacing vector such that its length
- * is the minimal diagonal spacing. For origin, use the physical
- * coordinates of the point with the minimum indices.
+ * Compute the union of the image domains of all transforms.
+ * It uses the first image domain's direction and origin, but
+ * with a spacing from the first image scaled to the minimum
+ * diagonal spacing among all transforms.
+ *
+ * For each transform, its moving image domain is used since
+ * it includes and might be bigger than its fixed image domain.
  */
 template< class TScalarType,
           unsigned int NDimensions >
@@ -421,19 +423,19 @@ PolyAffineTransform< TScalarType, NDimensions >
 {
   int cornerNum = 1 << NDimensions;
 
-  IndexType firstCorner, corner, start;
+  IndexType firstCorner, corner;
   ContinuousIndexType mappedCorner, minIndex, maxIndex; 
-  PointType point, origin;
+  PointType point;
   SizeType size;
   RegionType region;
-  SpacingType spacing, firstSpacing;
+  SpacingType firstSpacing;
 
   TScalarType diagSpacing, minDiagSpacing, firstDiagSpacing;
   DirectionType firstDirection;
   MaskImagePointer mask, firstMask;
 
   //use the direction matrix from the first image domain
-  firstMask = m_LocalAffineTransformVector[0]->GetMaskImage();
+  firstMask = m_LocalAffineTransformVector[0]->GetMovingMaskImage();
   firstDirection = firstMask->GetDirection();
 
   //compute the minimum diagonal spacing from all transforms
@@ -441,22 +443,23 @@ PolyAffineTransform< TScalarType, NDimensions >
   firstDiagSpacing = this->GetDiagonalSpacing(firstMask);
   minDiagSpacing = firstDiagSpacing;
 
-  //minIndex and maxIndex are in the first image domain
-  minIndex = firstMask->GetLargestPossibleRegion().GetIndex();
-  maxIndex = minIndex;
+  //compute minIndex and maxIndex of all mask image corners.
+  //minIndex and maxIndex are in the first image domain.
+  region = firstMask->GetLargestPossibleRegion();
+  minIndex = region.GetIndex();
+  maxIndex = region.GetUpperIndex();
 
   for (int t=0; t<m_LocalAffineTransformVector.size(); t++)
     {
     LocalAffineTransformPointer trans = m_LocalAffineTransformVector[t];
-    mask = trans->GetMaskImage();
+    mask = trans->GetMovingMaskImage();
   
     //the minimum spacing is computed here.
     diagSpacing = this->GetDiagonalSpacing(mask);
-    if (diagSpacing < minDiagSpacing)
+    if (minDiagSpacing > diagSpacing)
       {
       minDiagSpacing = diagSpacing;
       }
-
     region = mask->GetLargestPossibleRegion();
     size = region.GetSize();
     firstCorner = region.GetIndex();
@@ -475,48 +478,37 @@ PolyAffineTransform< TScalarType, NDimensions >
       //map the point into an index in the first image domain.
       firstMask->TransformPhysicalPointToContinuousIndex(point, mappedCorner);
 
-      for (int d=0; d<NDimensions; d++)
-        {
-        if (minIndex[d] > mappedCorner[d])
-          {
-          minIndex[d] = mappedCorner[d];
-          }
-        if (maxIndex[d] < mappedCorner[d])
-          {
-          maxIndex[d] = mappedCorner[d];
-          }
-        }
+      LocalAffineTransformType::CopyWithMin<ContinuousIndexType>(minIndex, mappedCorner);
+      LocalAffineTransformType::CopyWithMax<ContinuousIndexType>(maxIndex, mappedCorner);
       } //for each corner
-
     } //for each transform
 
-  //add some boundaries
+  TScalarType scalingFactor = minDiagSpacing / firstDiagSpacing;
+  SpacingType unionSpacing = firstSpacing * scalingFactor;
+  ContinuousIndexType minScaledIndex, maxScaledIndex;
   for (int d=0; d<NDimensions; d++)
     {
-    minIndex[d]--;
-    maxIndex[d]++;
+    minScaledIndex[d] = minIndex[d] / scalingFactor;
+    maxScaledIndex[d] = maxIndex[d] / scalingFactor;
+    //add some boundaries
+    minScaledIndex[d]--;
+    maxScaledIndex[d]++;
     }
-  
-  firstMask->TransformContinuousIndexToPhysicalPoint(minIndex, origin);
-  spacing = firstSpacing * (minDiagSpacing / firstDiagSpacing);
-  
-  for (int d=0; d<NDimensions; d++)
-    {
-    size[d] = 1 + (SizeValueType)(maxIndex[d] - minIndex[d] + 0.5);
-    }
+
+  IndexType scaledIndex1, scaledIndex2;
+  scaledIndex1.CopyWithRound(minScaledIndex);
+  scaledIndex2.CopyWithRound(maxScaledIndex);
+  RegionType unionRegion;
+  unionRegion.SetIndex( scaledIndex1 );
+  unionRegion.SetUpperIndex( scaledIndex2 );
 
   this->m_BoundaryMask = MaskImageType::New();
-  this->m_BoundaryMask->SetOrigin(origin);
-  this->m_BoundaryMask->SetDirection(firstDirection);
-  this->m_BoundaryMask->SetSpacing(spacing);
-
-  start.Fill( 0 );
-  region.SetSize( size );
-  region.SetIndex( start );
-  this->m_BoundaryMask->SetRegions( region );
+  this->m_BoundaryMask->SetOrigin(firstMask->GetOrigin());
+  this->m_BoundaryMask->SetDirection(firstMask->GetDirection());
+  this->m_BoundaryMask->SetSpacing( unionSpacing );
+  this->m_BoundaryMask->SetRegions( unionRegion );
 
   this->m_BoundaryMask->Allocate();  
-
   this->m_BoundaryMask->FillBuffer(1);
 
 }
@@ -529,14 +521,14 @@ template< class TScalarType,
           unsigned int NDimensions >
 typename PolyAffineTransform< TScalarType, NDimensions >::TrajectoryImagePointer
 PolyAffineTransform< TScalarType, NDimensions >
-::InitializeTrajectory(unsigned int transformId)
+::InitializeTrajectory(MaskImagePointer mask)
 {
   IndexType index;
   PointType point;
   int timeStamp, maskValue;
   
-  LocalAffineTransformPointer trans = m_LocalAffineTransformVector[transformId];
-  MaskImagePointer mask = trans->GetMaskImage();
+  //LocalAffineTransformPointer trans = m_LocalAffineTransformVector[transformId];
+  //MaskImagePointer mask = trans->GetFixedMaskImage();
 
   typedef itk::NearestNeighborInterpolateImageFunction< MaskImageType, TScalarType >
                                                        InterpolatorType;
@@ -544,8 +536,8 @@ PolyAffineTransform< TScalarType, NDimensions >
   interpolator->SetInputImage(mask);
 
   TrajectoryImagePointer traj = TrajectoryImageType::New();
-  traj->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
   traj->CopyInformation(this->m_BoundaryMask);
+  traj->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
   traj->Allocate();
 
   typedef ImageRegionIteratorWithIndex< TrajectoryImageType > IteratorType;
@@ -569,7 +561,6 @@ PolyAffineTransform< TScalarType, NDimensions >
     }
 
   return traj;
-
 }
 
 /**
@@ -581,13 +572,14 @@ template< class TScalarType,
           unsigned int NDimensions >
 void
 PolyAffineTransform< TScalarType, NDimensions >
-::InitializeFrontier(unsigned int transformId, FrontierType &frontier)
+::InitializeFrontier(MaskImagePointer mask,
+                     FrontierType &frontier)
 {
   IndexType index;
   PointType point;
 
-  LocalAffineTransformPointer trans = m_LocalAffineTransformVector[transformId];
-  MaskImagePointer mask = trans->GetMaskImage();
+  //LocalAffineTransformPointer trans = m_LocalAffineTransformVector[transformId];
+  //MaskImagePointer mask = trans->GetFixedMaskImage();
 
   typedef itk::NearestNeighborInterpolateImageFunction< MaskImageType, TScalarType >
                                                        InterpolatorType;
@@ -635,7 +627,7 @@ PolyAffineTransform< TScalarType, NDimensions >
   //If z is already put in the trajectory, we don't need to check twice 
   //for the next move of z.
 
-  TrajectoryImagePointer traj = this->InitializeTrajectory(transformId);
+  TrajectoryImagePointer traj = this->InitializeTrajectory(trans->GetFixedMaskImage());
   
   typedef itk::NearestNeighborInterpolateImageFunction< TrajectoryImageType, TScalarType >
                                                        InterpolatorType;
@@ -646,7 +638,7 @@ PolyAffineTransform< TScalarType, NDimensions >
   //trajectory(j/N, M) - trajectory((j-1)/N, M).
 	FrontierType frontier0, frontier1;
   FrontierType *frontierNow, *frontierNext;
-  this->InitializeFrontier(transformId, frontier0);
+  this->InitializeFrontier(trans->GetFixedMaskImage(), frontier0);
 
   MaskImagePointer domain = this->m_BoundaryMask;
 	for (int ts=0; ts<N; ts++)
@@ -688,8 +680,8 @@ PolyAffineTransform< TScalarType, NDimensions >
           {
           traj->SetPixel(index, ts+1); //timestamp + 1
           }
-        frontierNext->push_back(z);
         }
+      frontierNext->push_back(z);
       }
     } //for timestamp 0..N
 
@@ -887,8 +879,8 @@ PolyAffineTransform< TScalarType, NDimensions >
     }
 
   this->m_VelocityField = DisplacementFieldType::New();
-  this->m_VelocityField->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
   this->m_VelocityField->CopyInformation(this->m_BoundaryMask);
+  this->m_VelocityField->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
   this->m_VelocityField->Allocate();
 
   typedef typename LocalAffineTransformType::VelocityAffineTransformType 
@@ -926,7 +918,7 @@ PolyAffineTransform< TScalarType, NDimensions >
     it.Set(velocitySum);
     }
   DebugHelper::WriteDisplacementField<DisplacementFieldType>
-    (this->m_VelocityField, "tmpVelo.nii");
+    (this->m_VelocityField, "tmpVelocitySum.nii");
 
 }
 

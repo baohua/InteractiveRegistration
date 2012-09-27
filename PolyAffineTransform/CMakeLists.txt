@@ -7,12 +7,14 @@ include_directories ("${CMAKE_SOURCE_DIR}/ThirdParty")
 # add the executable
 add_executable(itkPolyAffineTransformTest itkPolyAffineTransformTest.cxx
                itkPolyAffineTransform.h itkPolyAffineTransform.hxx
-               itkDebugHelper.h itkDebugHelper.hxx)
+               )
 target_link_libraries(itkPolyAffineTransformTest ${ITK_LIBRARIES})
 
 # add the executable
 add_executable(itkLocalAffineTransformTest itkLocalAffineTransformTest.cxx
-               itkLocalAffineTransform.h itkLocalAffineTransform.hxx)
+               itkLocalAffineTransform.h itkLocalAffineTransform.hxx
+               itkDebugHelper.h itkDebugHelper.hxx
+               )
 target_link_libraries(itkLocalAffineTransformTest ${ITK_LIBRARIES})
 
 # add package
