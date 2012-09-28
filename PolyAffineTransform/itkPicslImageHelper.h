@@ -1,5 +1,5 @@
-#ifndef __itkDebugHelper_h
-#define __itkDebugHelper_h
+#ifndef __itkPicslImageHelper_h
+#define __itkPicslImageHelper_h
 
 #include <string.h>
 
@@ -10,18 +10,18 @@
 namespace itk
 {
 
-class DebugHelper:
+class PicslImageHelper:
   public Object
 {
 public:
   /** Standard typedefs   */
-  typedef DebugHelper                   Self;
+  typedef PicslImageHelper                   Self;
   typedef Object                        Superclass;
   typedef SmartPointer< Self >          Pointer;
   typedef SmartPointer< const Self >    ConstPointer;
 
   /** Run-time type information (and related methods).   */
-  itkTypeMacro(DebugHelper, Object);
+  itkTypeMacro(PicslImageHelper, Object);
   /** New macro for creation of through a Smart Pointer   */
   itkNewMacro(Self);
 
@@ -31,18 +31,22 @@ public:
   template< class TImage>
   static void WriteImage(typename TImage::Pointer image, char *fname);
 
+  template< class TRegion>
+  static typename itk::VectorContainer<int, typename TRegion::IndexType>::Pointer 
+    GetCorners( const TRegion &region);
+
   static const bool m_Debug = true;
 
 protected:
-  DebugHelper();
-  virtual ~DebugHelper();
+  PicslImageHelper();
+  virtual ~PicslImageHelper();
 
-  /** Print contents of an DebugHelper */
+  /** Print contents of an PicslImageHelper */
   void PrintSelf(std::ostream & s, Indent indent) const;
 
 private:
 
-  DebugHelper(const Self & other);
+  PicslImageHelper(const Self & other);
   const Self & operator=(const Self &);
 
 };
@@ -50,7 +54,7 @@ private:
 }
 
 #if ITK_TEMPLATE_TXX
-#include "itkDebugHelper.hxx"
+#include "itkPicslImageHelper.hxx"
 #endif
 
-#endif /* __itkDebugHelper_h */
+#endif /* __itkPicslImageHelper_h */

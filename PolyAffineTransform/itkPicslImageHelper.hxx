@@ -1,32 +1,65 @@
-#ifndef __itkDebugHelper_hxx
-#define __itkDebugHelper_hxx
+#ifndef __itkPicslImageHelper_hxx
+#define __itkPicslImageHelper_hxx
 
-#include "itkDebugHelper.h"
+#include "itkPicslImageHelper.h"
 
 namespace itk
 {
 
-DebugHelper
-::DebugHelper()
+PicslImageHelper
+::PicslImageHelper()
 {
 }
 
-DebugHelper
-::~DebugHelper()
+PicslImageHelper
+::~PicslImageHelper()
 {
 }
 
 void
-DebugHelper::PrintSelf(std::ostream & os, Indent indent) const
+PicslImageHelper::PrintSelf(std::ostream & os, Indent indent) const
 {
 }
+template< class TRegion>
+static typename itk::VectorContainer<int, typename TRegion::IndexType>::Pointer 
+PicslImageHelper
+::GetCorners( const TRegion &region)
+{
+  const unsigned int NDimensions = TRegion::ImageDimension;
+  int cornerNum = 1 << NDimensions;
+
+  typedef itk::VectorContainer<int, typename TRegion::IndexType>
+    VectorContainerType;
+  typedef VectorContainerType::Pointer
+    VectorContainerPointer;
+  
+  VectorContainerPointer cornerIndices = VectorContainerType::New();
+  cornerIndices->Reserve(cornerNum);
+
+  TRegion::SizeType size = region.GetSize();
+  TRegion::IndexType firstCorner = region.GetIndex();
+
+  for(int i=0; i<cornerNum; i++)
+    {
+    int bit;
+    TRegion::IndexType corner;
+    for (int d=0; d<NDimensions; d++)
+      {
+      bit = (int) (( i & (1 << d) ) != 0); // 0 or 1
+      corner[d] = firstCorner[d] + bit * (size[d] - 1);
+      }
+    cornerIndices->SetElement(i, corner);
+    }
+  return cornerIndices;
+}
+
 
 template< class TImage>
 static void 
-DebugHelper
+PicslImageHelper
 ::WriteImage(typename TImage::Pointer image, char *fname)
 {
-  if (!DebugHelper::m_Debug)
+  if (!PicslImageHelper::m_Debug)
     {
     return;
     }
@@ -51,10 +84,10 @@ DebugHelper
 
 template< class TField>
 static void 
-DebugHelper
+PicslImageHelper
 ::WriteDisplacementField(typename TField::Pointer field, char *fname)
 {
-  if (!DebugHelper::m_Debug)
+  if (!PicslImageHelper::m_Debug)
     {
     return;
     }

@@ -25,7 +25,7 @@
 #include "itkExponentialDisplacementFieldImageFilter.h"
 
 #include "itkLocalAffineTransform.h"
-#include "itkDebugHelper.h"
+#include "itkPicslImageHelper.h"
 
 namespace itk
 {
@@ -143,6 +143,8 @@ public:
   typedef LocalAffineTransform<TScalarType, NDimensions>       LocalAffineTransformType;
   typedef typename LocalAffineTransformType::Pointer           LocalAffineTransformPointer;
   typedef typename LocalAffineTransformType::ParametersType    LocalAffineParametersType;
+  typedef typename LocalAffineTransformType::PointSetType      PointSetType;
+  typedef typename LocalAffineTransformType::PointSetPointer   PointSetPointer;
 
   typedef itk::DisplacementFieldTransform<TScalarType, NDimensions> 
                                                                DisplacementFieldTransformType;
@@ -307,8 +309,10 @@ public:
 
   TScalarType GetDiagonalSpacing(MaskImagePointer mask);
   void InitializeBoundaryMask();
-  TrajectoryImagePointer InitializeTrajectory(MaskImagePointer mask);
-  void InitializeFrontier(MaskImagePointer mask, FrontierType &frontier);
+  void AddMaskToTrajectory(TrajectoryImagePointer &traj, 
+    const MaskImagePointer &mask, 
+    typename TrajectoryImageType::PixelType label);
+  void InitializeFrontier(FrontierType &frontier, const PointSetPointer &pointSet);
   TrajectoryImagePointer ComputeTrajectory(unsigned int transformId);
   WeightImagePointer ComputeTrajectoryWeightImage(TrajectoryImagePointer traj,
                                                   WeightImagePointer boundaryWeightImage);

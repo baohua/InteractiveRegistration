@@ -111,7 +111,8 @@ LocalAffineTransform< TScalarType, NDimensions >::AddFixedPoint(InputPointType p
     {
     this->m_FixedPointSet = PointSet::New();
     }
-  this->m_FixedPointSet.push_back(point);
+  PointSetType::PointIndentifier id = this->m_FixedPointSet->GetNumberOfPoints();
+  this->m_FixedPointSet.SetPoint(id, point);
 }
 
 template< class TScalarType, unsigned int NDimensions >
@@ -155,6 +156,28 @@ LocalAffineTransform< TScalarType, NDimensions >
   this->m_FixedMaskImage = imageFilter->GetOutput();
 }
 
+template< class TScalarType, unsigned int NDimensions >
+void 
+LocalAffineTransform< TScalarType, NDimensions >
+::AddMaskToPointSet(PointSetPointer &pointSet, const MaskImagePointer &mask)
+{
+  typedef ImageRegionIteratorWithIndex< MaskImageType > IteratorType;
+  IteratorType it( mask, mask->GetLargestPossibleRegion() );
+
+  //fill the moving mask with values
+  PointSetType::PointIdentifier pointId = pointSet->GetNumberOfPoints();
+  PointType point;
+
+  for( it.GoToBegin(); !it.IsAtEnd(); ++it )
+    {
+      if (it.Get() != 0) //foreground
+        {
+        mask->TransformIndexToPhysicalPoint(it.GetIndex(), point);
+        pointSet->SetPoint(pointId++, point);
+      }
+    }
+}
+
 /**
  * Warp the fixed mask to the moving mask. The moving mask
  * uses the meta information from the fixed mask except its
@@ -164,37 +187,33 @@ LocalAffineTransform< TScalarType, NDimensions >
 template< class TScalarType, unsigned int NDimensions >
 void 
 LocalAffineTransform< TScalarType, NDimensions >
-::ComputeMovingMaskImageFromFixedMaskImage()
+::ComputeMovingMaskImageAndDenseFixedPointSet()
 {
   ContinuousIndexType mappedCorner, minIndex, maxIndex;
-  PointType point, mappedPoint;
 
   //compute minIndex and maxIndex of the warped mask
   RegionType fixedRegion = this->m_FixedMaskImage->GetLargestPossibleRegion();
   minIndex = fixedRegion.GetIndex();
   maxIndex = fixedRegion.GetUpperIndex();
 
-  int cornerNum = 1 << NDimensions;
-  IndexType corner, firstCorner = fixedRegion.GetIndex();
-  SizeType size = fixedRegion.GetSize();
-  for(int i=0; i<cornerNum; i++)
+  typedef typename itk::VectorContainer<int, IndexType> IndexContainerType;
+  typename IndexContainerType::Pointer corners = 
+    PicslImageHelper::GetCorners<RegionType>(fixedRegion);
+  IndexContainerType::ConstIterator corner;
+  for ( corner = corners->Begin(); corner != corners->End(); corner++)
     {
-    int bit;
-    for (int d=0; d<NDimensions; d++)
-      {
-      bit = (int) (( i & (1 << d) ) != 0); // 0 or 1
-      corner[d] = firstCorner[d] + bit * (size[d] - 1);
-      }
+    IndexType cornerIndex = corner.Value();
+    PointType cornerPoint, mappedPoint;
     //map the corner index into the physical point
-    this->m_FixedMaskImage->TransformIndexToPhysicalPoint(corner, point);
+    this->m_FixedMaskImage->TransformIndexToPhysicalPoint(cornerIndex, cornerPoint);
     //transform the point by this local affine transform
-    mappedPoint = this->TransformPoint(point);
+    mappedPoint = this->TransformPoint(cornerPoint);
     //map the transformed point to index
     this->m_FixedMaskImage->TransformPhysicalPointToContinuousIndex(mappedPoint, mappedCorner);
 
     CopyWithMin<ContinuousIndexType>(minIndex, mappedCorner);
     CopyWithMax<ContinuousIndexType>(maxIndex, mappedCorner);
-    } //for each corner 
+    }
   
   //allocate the moving mask with the possible region
   IndexType index1, index2; 
@@ -220,15 +239,19 @@ LocalAffineTransform< TScalarType, NDimensions >
 
   PointType point1, point2;
   MaskImageType::PixelType pixel;
-  IndexType minMovingMaskIndex, maxMovingMaskIndex;
 
+  IndexType minMovingMaskIndex, maxMovingMaskIndex;
   minMovingMaskIndex = fixedRegion.GetIndex();
   maxMovingMaskIndex = fixedRegion.GetUpperIndex();
 
-  typedef ImageRegionIteratorWithIndex< MaskImageType > IteratorType;
-  IteratorType it( movingMask, movingMask->GetLargestPossibleRegion() );
+  //fill m_DenseFixedPointSet with points
+  this->m_DenseFixedPointSet = PointSetType::New();
+  this->AddMaskToPointSet(this->m_DenseFixedPointSet, this->m_FixedMaskImage);
+  int pointId = this->m_DenseFixedPointSet->GetNumberOfPoints();
 
   //fill the moving mask with values
+  typedef ImageRegionIteratorWithIndex< MaskImageType > IteratorType;
+  IteratorType it( movingMask, movingMask->GetLargestPossibleRegion() );
   for( it.GoToBegin(); !it.IsAtEnd(); ++it )
     {
     index1 = it.GetIndex();
@@ -236,31 +259,28 @@ LocalAffineTransform< TScalarType, NDimensions >
     point2 = inverse->TransformPoint(point1);
 
     insideImage = this->m_FixedMaskImage->TransformPhysicalPointToIndex(point2, index2);
+    pixel = 0;
     if (insideImage)
       {
       pixel = this->m_FixedMaskImage->GetPixel(index2);
-      it.Set(pixel);
-
-      if (pixel > 0) //foreground
+      if (pixel != 0) //foreground
         {
         //update min and max indices
         CopyWithMin<IndexType>(minMovingMaskIndex, index1);
         CopyWithMax<IndexType>(maxMovingMaskIndex, index1);
+        this->m_DenseFixedPointSet->SetPoint(pointId++, point2);
         }
       }
-    else
-      {
-      it.Set(0);
-      }
+    it.Set(pixel);
     } //for iterator of movingMask
 
-  RegionType trimmedRegion;
-  trimmedRegion.SetIndex(minMovingMaskIndex);
-  trimmedRegion.SetUpperIndex(maxMovingMaskIndex);
+  RegionType extractRegion;
+  extractRegion.SetIndex(minMovingMaskIndex);
+  extractRegion.SetUpperIndex(maxMovingMaskIndex);
 
   typedef itk::ExtractImageFilter< MaskImageType, MaskImageType > FilterType;
   FilterType::Pointer filter = FilterType::New();
-  filter->SetExtractionRegion(trimmedRegion);
+  filter->SetExtractionRegion(extractRegion);
   filter->SetInput(movingMask);
 #if ITK_VERSION_MAJOR >= 4
   filter->SetDirectionCollapseToIdentity(); // This is required.

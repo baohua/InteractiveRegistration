@@ -421,15 +421,10 @@ void
 PolyAffineTransform< TScalarType, NDimensions >
 ::InitializeBoundaryMask()
 {
-  int cornerNum = 1 << NDimensions;
-
-  IndexType firstCorner, corner;
-  ContinuousIndexType mappedCorner, minIndex, maxIndex; 
+  ContinuousIndexType minIndex, maxIndex;
   PointType point;
-  SizeType size;
   RegionType region;
   SpacingType firstSpacing;
-
   TScalarType diagSpacing, minDiagSpacing, firstDiagSpacing;
   DirectionType firstDirection;
   MaskImagePointer mask, firstMask;
@@ -460,31 +455,30 @@ PolyAffineTransform< TScalarType, NDimensions >
       {
       minDiagSpacing = diagSpacing;
       }
-    region = mask->GetLargestPossibleRegion();
-    size = region.GetSize();
-    firstCorner = region.GetIndex();
 
-    //compute the minimum corner and maximum corner in the first image domain.
-    for(int i=0; i<cornerNum; i++)
+    region = mask->GetLargestPossibleRegion();
+    typedef typename itk::VectorContainer<int, IndexType> IndexContainerType;
+    typename IndexContainerType::Pointer corners = 
+      PicslImageHelper::GetCorners<RegionType>(region);
+    IndexContainerType::ConstIterator corner;
+    for ( corner = corners->Begin(); corner != corners->End(); corner++)
       {
-      int bit;
-      for (int d=0; d<NDimensions; d++)
-        {
-        bit = (int) (( i & (1 << d) ) != 0); // 0 or 1
-        corner[d] = firstCorner[d] + bit * (size[d] - 1);
-        }
-      //map the corner index into the physical point.
-      mask->TransformIndexToPhysicalPoint(corner, point);
-      //map the point into an index in the first image domain.
-      firstMask->TransformPhysicalPointToContinuousIndex(point, mappedCorner);
+      IndexType cornerIndex = corner.Value();
+      PointType cornerPoint;
+      mask->TransformIndexToPhysicalPoint(cornerIndex, cornerPoint);
+
+      //get corner index in the first mask image
+      ContinuousIndexType mappedCorner;
+      firstMask->TransformPhysicalPointToContinuousIndex(cornerPoint, mappedCorner);
 
       LocalAffineTransformType::CopyWithMin<ContinuousIndexType>(minIndex, mappedCorner);
       LocalAffineTransformType::CopyWithMax<ContinuousIndexType>(maxIndex, mappedCorner);
-      } //for each corner
+      }
     } //for each transform
 
   TScalarType scalingFactor = minDiagSpacing / firstDiagSpacing;
   SpacingType unionSpacing = firstSpacing * scalingFactor;
+
   ContinuousIndexType minScaledIndex, maxScaledIndex;
   for (int d=0; d<NDimensions; d++)
     {
@@ -519,27 +513,16 @@ PolyAffineTransform< TScalarType, NDimensions >
  */
 template< class TScalarType,
           unsigned int NDimensions >
-typename PolyAffineTransform< TScalarType, NDimensions >::TrajectoryImagePointer
+void
 PolyAffineTransform< TScalarType, NDimensions >
-::InitializeTrajectory(MaskImagePointer mask)
+::AddMaskToTrajectory(TrajectoryImagePointer &traj, 
+                      const MaskImagePointer &mask, 
+                      typename TrajectoryImageType::PixelType label)
 {
-  IndexType index;
+  IndexType index, index2;
   PointType point;
-  int timeStamp, maskValue;
+  bool inside;
   
-  //LocalAffineTransformPointer trans = m_LocalAffineTransformVector[transformId];
-  //MaskImagePointer mask = trans->GetFixedMaskImage();
-
-  typedef itk::NearestNeighborInterpolateImageFunction< MaskImageType, TScalarType >
-                                                       InterpolatorType;
-  typename InterpolatorType::Pointer interpolator = InterpolatorType::New();
-  interpolator->SetInputImage(mask);
-
-  TrajectoryImagePointer traj = TrajectoryImageType::New();
-  traj->CopyInformation(this->m_BoundaryMask);
-  traj->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
-  traj->Allocate();
-
   typedef ImageRegionIteratorWithIndex< TrajectoryImageType > IteratorType;
   IteratorType it( traj, traj->GetLargestPossibleRegion() );
 
@@ -547,20 +530,16 @@ PolyAffineTransform< TScalarType, NDimensions >
     {
     index = it.GetIndex();
     traj->TransformIndexToPhysicalPoint( index, point );
+    inside = mask->TransformPhysicalPointToIndex( point, index2 );
 
-    timeStamp = 0; //background
-    if( interpolator->IsInsideBuffer( point ) )
+    if( inside )
       {
-      maskValue = interpolator->Evaluate( point );
-      if (maskValue > 0)
+      if (mask->GetPixel( index2 ) > 0)
         {
-        timeStamp = 1; //forebround
+        it.Set(label); //forebround
         }
       }
-    it.Set(timeStamp);
-    }
-
-  return traj;
+    } //for iterator
 }
 
 /**
@@ -572,38 +551,20 @@ template< class TScalarType,
           unsigned int NDimensions >
 void
 PolyAffineTransform< TScalarType, NDimensions >
-::InitializeFrontier(MaskImagePointer mask,
-                     FrontierType &frontier)
+::InitializeFrontier(FrontierType &frontier, const PointSetPointer &pointSet)
 {
-  IndexType index;
   PointType point;
 
-  //LocalAffineTransformPointer trans = m_LocalAffineTransformVector[transformId];
-  //MaskImagePointer mask = trans->GetFixedMaskImage();
+  SizeValueType num = pointSet->GetNumberOfPoints();
+  frontier.resize(num);
 
-  typedef itk::NearestNeighborInterpolateImageFunction< MaskImageType, TScalarType >
-                                                       InterpolatorType;
-  typename InterpolatorType::Pointer interpolator = InterpolatorType::New();
-  interpolator->SetInputImage(mask);
-
-  typedef ImageRegionIteratorWithIndex< MaskImageType > IteratorType;
-  IteratorType it( this->m_BoundaryMask, 
-    this->m_BoundaryMask->GetLargestPossibleRegion() );
-
-  for( it.GoToBegin(); !it.IsAtEnd(); ++it )
+  typename PointSetType::PointsContainer *container = pointSet->GetPoints();
+  typename PointSetType::PointsContainer::ConstIterator it = container->Begin();
+  while (it != container->End())
     {
-    index = it.GetIndex();
-    this->m_BoundaryMask->TransformIndexToPhysicalPoint( index, point );
-
-    if( interpolator->IsInsideBuffer( point ) )
-      {
-      if (interpolator->Evaluate( point ) > 0)
-        {
-        frontier.push_back(point);
-        }
-      }
+    frontier.push_back(it->Value());
+    it++;
     }
-
 }
 
 /**
@@ -623,11 +584,14 @@ PolyAffineTransform< TScalarType, NDimensions >
   typedef typename LocalAffineTransformType::VelocityAffineTransformPointer VelocityAffineTransformPointer;
   VelocityAffineTransformPointer velocity = trans->GetVelocityAffineTransform();
 
-  //Each point y in the trajectory will be checked for its next move to z.
-  //If z is already put in the trajectory, we don't need to check twice 
-  //for the next move of z.
+  TrajectoryImagePointer traj = TrajectoryImageType::New();
+  traj->CopyInformation(this->m_BoundaryMask);
+  traj->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
+  traj->Allocate();
+  traj->FillBuffer(0);
 
-  TrajectoryImagePointer traj = this->InitializeTrajectory(trans->GetFixedMaskImage());
+  //this->AddMaskToTrajectory(traj, trans->GetFixedMaskImage(), 1);
+  //this->AddMaskToTrajectory(traj, trans->GetMovingMaskImage(), 1);
   
   typedef itk::NearestNeighborInterpolateImageFunction< TrajectoryImageType, TScalarType >
                                                        InterpolatorType;
@@ -638,10 +602,10 @@ PolyAffineTransform< TScalarType, NDimensions >
   //trajectory(j/N, M) - trajectory((j-1)/N, M).
 	FrontierType frontier0, frontier1;
   FrontierType *frontierNow, *frontierNext;
-  this->InitializeFrontier(trans->GetFixedMaskImage(), frontier0);
+  this->InitializeFrontier(frontier0, trans->GetDenseFixedPointSet());
 
   MaskImagePointer domain = this->m_BoundaryMask;
-	for (int ts=0; ts<N; ts++)
+	for (int ts=0; ts<=N; ts++)
     {
     if (ts % 2 == 0) 
       {
@@ -654,7 +618,8 @@ PolyAffineTransform< TScalarType, NDimensions >
 		  frontierNext = &frontier0;
       }
     frontierNext->clear();
-    std::cout << "frontNow size = " << frontierNow->size() << std::endl;
+    //std::cout << "frontNow size = " << frontierNow->size() << std::endl;
+
 		for (int f=0; f<frontierNow->size(); f++)
       {
 			PointType y = frontierNow->at(f);
@@ -667,13 +632,11 @@ PolyAffineTransform< TScalarType, NDimensions >
         {
         z[d] = y[d] + step[d] / N;
         }
-      double stepLength = 0;
-      for (unsigned int d=0; d<NDimensions; d++) stepLength += step[d]/N*step[d]/N;
-      stepLength = vcl_sqrt(stepLength);
-      std::cout << "stepLength = " << stepLength << std::endl;
+      frontierNext->push_back(z);
       //this->AddSegmentIntoTrajectory(y, z, traj, frontierNext, 0, ts+1);
+
       IndexType index;
-      bool insideImage = traj->TransformPhysicalPointToIndex(z, index);
+      bool insideImage = traj->TransformPhysicalPointToIndex(y, index);
       if (insideImage)
         {
         if (traj->GetPixel(index) <= 0)
@@ -681,7 +644,6 @@ PolyAffineTransform< TScalarType, NDimensions >
           traj->SetPixel(index, ts+1); //timestamp + 1
           }
         }
-      frontierNext->push_back(z);
       }
     } //for timestamp 0..N
 
@@ -690,7 +652,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 
   char fname[256];
   sprintf_s(fname, "tmpTraj%d.nii", transformId);
-  itk::DebugHelper::WriteImage<TrajectoryImageType>(traj, fname);
+  itk::PicslImageHelper::WriteImage<TrajectoryImageType>(traj, fname);
 
   return traj;
 }
@@ -863,7 +825,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 
   this->m_BoundaryWeightImage = 
     this->ComputeBoundaryWeightImage();
-  DebugHelper::WriteImage<WeightImageType>
+  PicslImageHelper::WriteImage<WeightImageType>
     (this->m_BoundaryWeightImage, "tmpBoundWeight.nii");
 
   for (unsigned int t=0; t<transformNumber; t++)
@@ -874,7 +836,7 @@ PolyAffineTransform< TScalarType, NDimensions >
                                          this->m_BoundaryWeightImage);
     char fname[256];
     sprintf_s(fname, "tmpTrajWeight%d.nii", t);
-    DebugHelper::WriteImage<WeightImageType>
+    PicslImageHelper::WriteImage<WeightImageType>
       (this->m_TrajectoryWeightImageVector[t], fname);
     }
 
@@ -917,7 +879,7 @@ PolyAffineTransform< TScalarType, NDimensions >
       }
     it.Set(velocitySum);
     }
-  DebugHelper::WriteDisplacementField<DisplacementFieldType>
+  PicslImageHelper::WriteDisplacementField<DisplacementFieldType>
     (this->m_VelocityField, "tmpVelocitySum.nii");
 
 }

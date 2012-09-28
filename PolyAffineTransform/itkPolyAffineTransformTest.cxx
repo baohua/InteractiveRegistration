@@ -28,7 +28,7 @@
 #include "itkImageFileWriter.h"
 #include "itkGroupSpatialObject.h"
 #include "itkBoxSpatialObject.h"
-#include "itkDebugHelper.h"
+#include "itkPicslImageHelper.h"
 
 using namespace itk;
 
@@ -103,14 +103,14 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   MaskImageType::SizeType size;
   size.Fill(128);
   localTransform1->ComputeFixedMaskImageFromSpatialObject<SceneType>(scene1, size);
-  localTransform1->ComputeMovingMaskImageFromFixedMaskImage();
-  itk::DebugHelper::WriteImage<LocalAffineTransformType::MaskImageType>(localTransform1->GetFixedMaskImage(), "tmpFixedMask1.nii");
-  itk::DebugHelper::WriteImage<LocalAffineTransformType::MaskImageType>(localTransform1->GetMovingMaskImage(), "tmpMovingMask1.nii");
+  localTransform1->ComputeMovingMaskImageAndDenseFixedPointSet();
+  itk::PicslImageHelper::WriteImage<LocalAffineTransformType::MaskImageType>(localTransform1->GetFixedMaskImage(), "tmpFixedMask1.nii");
+  itk::PicslImageHelper::WriteImage<LocalAffineTransformType::MaskImageType>(localTransform1->GetMovingMaskImage(), "tmpMovingMask1.nii");
 
   localTransform2->ComputeFixedMaskImageFromSpatialObject<SceneType>(scene2, size);
-  localTransform2->ComputeMovingMaskImageFromFixedMaskImage();
-  itk::DebugHelper::WriteImage<LocalAffineTransformType::MaskImageType>(localTransform2->GetFixedMaskImage(), "tmpFixedMask2.nii");
-  itk::DebugHelper::WriteImage<LocalAffineTransformType::MaskImageType>(localTransform2->GetMovingMaskImage(), "tmpMovingMask2.nii");
+  localTransform2->ComputeMovingMaskImageAndDenseFixedPointSet();
+  itk::PicslImageHelper::WriteImage<LocalAffineTransformType::MaskImageType>(localTransform2->GetFixedMaskImage(), "tmpFixedMask2.nii");
+  itk::PicslImageHelper::WriteImage<LocalAffineTransformType::MaskImageType>(localTransform2->GetMovingMaskImage(), "tmpMovingMask2.nii");
 
   polyTransform->AddLocalAffineTransform(localTransform1);
   polyTransform->AddLocalAffineTransform(localTransform2);
@@ -132,7 +132,7 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
     return EXIT_FAILURE;
     }
   
-  itk::DebugHelper::WriteDisplacementField<DisplacementFieldType>
+  itk::PicslImageHelper::WriteDisplacementField<DisplacementFieldType>
     (displacementField, argv[1]);
 
   std::cout << "Test PASSED." << std::endl;

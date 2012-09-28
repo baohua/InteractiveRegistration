@@ -26,7 +26,7 @@
 #include "itkAffineTransform.h"
 #include "itkSpatialObjectToImageFilter.h"
 #include "itkExtractImageFilter.h"
-#include "itkDebugHelper.h"
+#include "itkPicslImageHelper.h"
 
 namespace itk
 {
@@ -130,6 +130,9 @@ public:
   /** Get the Mask Image. */
   itkGetObjectMacro(MovingMaskImage, MaskImageType);
 
+  itkSetObjectMacro(DenseFixedPointSet, PointSetType);
+  itkGetObjectMacro(DenseFixedPointSet, PointSetType);
+
   /** Set the Mask Image from a Spatial Object.  */
   template< class TSpatialObject > 
   void ComputeFixedMaskImageFromSpatialObject(TSpatialObject *spatialObject, SizeType size);
@@ -139,7 +142,8 @@ public:
                                 DirectionType direction,
                                 SpacingType spacing,
                                 SizeType size);
-  void ComputeMovingMaskImageFromFixedMaskImage();
+  void ComputeMovingMaskImageAndDenseFixedPointSet();
+  void AddMaskToPointSet(PointSetPointer &pointSet, const MaskImagePointer &mask);
 
   template< class TVector >
   static void CopyWithMax(TVector &maxVec, const TVector &newVec);
@@ -174,6 +178,10 @@ private:
 
   VelocityAffineTransformPointer m_VelocityAffineTransform;
   PointSetPointer m_FixedPointSet;
+
+  //points in the moving mask warped to fixed domain
+  PointSetPointer m_DenseFixedPointSet;
+
   MaskImagePointer m_FixedMaskImage;
   MaskImagePointer m_MovingMaskImage;
 
