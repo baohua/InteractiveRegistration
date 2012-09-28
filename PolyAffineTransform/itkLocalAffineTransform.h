@@ -116,7 +116,7 @@ public:
                                                         ContinuousIndexType;
 
   typedef AffineTransform< TScalarType, NDimensions >   VelocityAffineTransformType;
-  typedef VelocityAffineTransformType::Pointer          VelocityAffineTransformPointer;
+  typedef typename VelocityAffineTransformType::Pointer          VelocityAffineTransformPointer;
   virtual VelocityAffineTransformType* GetVelocityAffineTransform();
 
   void AddFixedPoint(const InputPointType point);

@@ -60,7 +60,7 @@ LocalAffineTransform< TScalarType, NDimensions >::ComputePrincipalLogorithm()
 
   vnl_matrix<TScalarType> homoMat(NDimensions+1, NDimensions+1);
   MatrixType mat = this->GetMatrix();
-  OutputVectorType offset = GetOffset();
+  OutputVectorType offset = this->GetOffset();
 
   homoMat.fill(0.0);
   for (unsigned int i=0; i<NDimensions; i++)
@@ -109,9 +109,9 @@ LocalAffineTransform< TScalarType, NDimensions >::AddFixedPoint(InputPointType p
 {
   if (this->m_FixedPointSet.IsNull())
     {
-    this->m_FixedPointSet = PointSet::New();
+    this->m_FixedPointSet = PointSetType::New();
     }
-  PointSetType::PointIndentifier id = this->m_FixedPointSet->GetNumberOfPoints();
+  typename PointSetType::PointIndentifier id = this->m_FixedPointSet->GetNumberOfPoints();
   this->m_FixedPointSet.SetPoint(id, point);
 }
 
@@ -122,7 +122,7 @@ LocalAffineTransform< TScalarType, NDimensions >
 ::ComputeFixedMaskImageFromSpatialObject(TSpatialObject *spatialObject, SizeType size)
 {
   typedef itk::SpatialObjectToImageFilter<TSpatialObject,MaskImageType> SpatialObjectToImageFilterType;
-  SpatialObjectToImageFilterType::Pointer imageFilter = SpatialObjectToImageFilterType::New();
+  typename SpatialObjectToImageFilterType::Pointer imageFilter = SpatialObjectToImageFilterType::New();
   imageFilter->SetInput(spatialObject);
   imageFilter->SetInsideValue(1);
   imageFilter->SetOutsideValue(0);
@@ -142,7 +142,7 @@ LocalAffineTransform< TScalarType, NDimensions >
                                 SizeType size)
 {
   typedef itk::SpatialObjectToImageFilter<TSpatialObject,MaskImageType> SpatialObjectToImageFilterType;
-  SpatialObjectToImageFilterType::Pointer imageFilter = SpatialObjectToImageFilterType::New();
+  typename SpatialObjectToImageFilterType::Pointer imageFilter = SpatialObjectToImageFilterType::New();
   imageFilter->SetInput(spatialObject);
   imageFilter->SetInsideValue(1);
   imageFilter->SetOutsideValue(0);
@@ -165,7 +165,7 @@ LocalAffineTransform< TScalarType, NDimensions >
   IteratorType it( mask, mask->GetLargestPossibleRegion() );
 
   //fill the moving mask with values
-  PointSetType::PointIdentifier pointId = pointSet->GetNumberOfPoints();
+  typename PointSetType::PointIdentifier pointId = pointSet->GetNumberOfPoints();
   PointType point;
 
   for( it.GoToBegin(); !it.IsAtEnd(); ++it )
@@ -199,7 +199,7 @@ LocalAffineTransform< TScalarType, NDimensions >
   typedef typename itk::VectorContainer<int, IndexType> IndexContainerType;
   typename IndexContainerType::Pointer corners = 
     PicslImageHelper::GetCorners<RegionType>(fixedRegion);
-  IndexContainerType::ConstIterator corner;
+  typename IndexContainerType::ConstIterator corner;
   for ( corner = corners->Begin(); corner != corners->End(); corner++)
     {
     IndexType cornerIndex = corner.Value();
@@ -229,7 +229,7 @@ LocalAffineTransform< TScalarType, NDimensions >
   movingMask->Allocate();
   
   //compute the inverse transform
-  Superclass::Pointer inverse = Superclass::New();
+  typename Superclass::Pointer inverse = Superclass::New();
   bool insideImage, invertible = this->GetInverse(inverse);
   if (!invertible)
     {
@@ -238,7 +238,7 @@ LocalAffineTransform< TScalarType, NDimensions >
     }
 
   PointType point1, point2;
-  MaskImageType::PixelType pixel;
+  typename MaskImageType::PixelType pixel;
 
   IndexType minMovingMaskIndex, maxMovingMaskIndex;
   minMovingMaskIndex = fixedRegion.GetIndex();
@@ -279,7 +279,7 @@ LocalAffineTransform< TScalarType, NDimensions >
   extractRegion.SetUpperIndex(maxMovingMaskIndex);
 
   typedef itk::ExtractImageFilter< MaskImageType, MaskImageType > FilterType;
-  FilterType::Pointer filter = FilterType::New();
+  typename FilterType::Pointer filter = FilterType::New();
   filter->SetExtractionRegion(extractRegion);
   filter->SetInput(movingMask);
 #if ITK_VERSION_MAJOR >= 4

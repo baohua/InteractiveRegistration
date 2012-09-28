@@ -460,7 +460,7 @@ PolyAffineTransform< TScalarType, NDimensions >
     typedef typename itk::VectorContainer<int, IndexType> IndexContainerType;
     typename IndexContainerType::Pointer corners = 
       PicslImageHelper::GetCorners<RegionType>(region);
-    IndexContainerType::ConstIterator corner;
+    typename IndexContainerType::ConstIterator corner;
     for ( corner = corners->Begin(); corner != corners->End(); corner++)
       {
       IndexType cornerIndex = corner.Value();
@@ -651,7 +651,7 @@ PolyAffineTransform< TScalarType, NDimensions >
   frontier1.clear();
 
   char fname[256];
-  sprintf_s(fname, "tmpTraj%d.nii", transformId);
+  sprintf(fname, "tmpTraj%d.nii", transformId);
   itk::PicslImageHelper::WriteImage<TrajectoryImageType>(traj, fname);
 
   return traj;
@@ -670,7 +670,7 @@ PolyAffineTransform< TScalarType, NDimensions >
                            int background, int foreground)
 {
   ContinuousIndexType middleIndex, startIndex, endIndex;
-  ContinuousIndexType::VectorType diffIndex;
+  typename ContinuousIndexType::VectorType diffIndex;
   PointType middlePoint;
   IndexType index;
   RegionType region;
@@ -694,7 +694,7 @@ PolyAffineTransform< TScalarType, NDimensions >
     }
 
   // We need to interpolate the segment along the maxDim-th dimension.
-  ContinuousIndexType::VectorType stepIndex = diffIndex / maxDiff;
+  typename ContinuousIndexType::VectorType stepIndex = diffIndex / maxDiff;
   region = traj->GetLargestPossibleRegion();
 
   middleIndex = endIndex;
@@ -835,7 +835,7 @@ PolyAffineTransform< TScalarType, NDimensions >
       this->ComputeTrajectoryWeightImage(this->m_TrajectoryImageVector[t],
                                          this->m_BoundaryWeightImage);
     char fname[256];
-    sprintf_s(fname, "tmpTrajWeight%d.nii", t);
+    sprintf(fname, "tmpTrajWeight%d.nii", t);
     PicslImageHelper::WriteImage<WeightImageType>
       (this->m_TrajectoryWeightImageVector[t], fname);
     }

@@ -2,6 +2,7 @@
 #define __itkPicslImageHelper_hxx
 
 #include "itkPicslImageHelper.h"
+#include "itkImageFileWriter.h"
 
 namespace itk
 {
@@ -21,7 +22,7 @@ PicslImageHelper::PrintSelf(std::ostream & os, Indent indent) const
 {
 }
 template< class TRegion>
-static typename itk::VectorContainer<int, typename TRegion::IndexType>::Pointer 
+typename itk::VectorContainer<int, typename TRegion::IndexType>::Pointer 
 PicslImageHelper
 ::GetCorners( const TRegion &region)
 {
@@ -30,19 +31,19 @@ PicslImageHelper
 
   typedef itk::VectorContainer<int, typename TRegion::IndexType>
     VectorContainerType;
-  typedef VectorContainerType::Pointer
+  typedef typename VectorContainerType::Pointer
     VectorContainerPointer;
   
   VectorContainerPointer cornerIndices = VectorContainerType::New();
   cornerIndices->Reserve(cornerNum);
 
-  TRegion::SizeType size = region.GetSize();
-  TRegion::IndexType firstCorner = region.GetIndex();
+  typename TRegion::SizeType size = region.GetSize();
+  typename TRegion::IndexType firstCorner = region.GetIndex();
 
   for(int i=0; i<cornerNum; i++)
     {
     int bit;
-    TRegion::IndexType corner;
+    typename TRegion::IndexType corner;
     for (int d=0; d<NDimensions; d++)
       {
       bit = (int) (( i & (1 << d) ) != 0); // 0 or 1
@@ -55,7 +56,7 @@ PicslImageHelper
 
 
 template< class TImage>
-static void 
+void 
 PicslImageHelper
 ::WriteImage(typename TImage::Pointer image, char *fname)
 {
@@ -63,9 +64,9 @@ PicslImageHelper
     {
     return;
     }
-  typedef itk::ImageFileWriter<TImage> WriterType;
+  typedef ImageFileWriter<TImage> WriterType;
   
-  WriterType::Pointer writer = WriterType::New();
+  typename WriterType::Pointer writer = WriterType::New();
   writer->SetInput(image);
   writer->SetFileName( fname );
 
@@ -83,7 +84,7 @@ PicslImageHelper
 }
 
 template< class TField>
-static void 
+void 
 PicslImageHelper
 ::WriteDisplacementField(typename TField::Pointer field, char *fname)
 {
@@ -92,18 +93,18 @@ PicslImageHelper
     return;
     }
   const unsigned int ImageDimension = TField::ImageDimension;
-  typedef TField::PixelType VectorType;
-  typedef TField::IndexType IndexType;
-  typedef VectorType::ValueType ScalarType;  
+  typedef typename TField::PixelType VectorType;
+  typedef typename TField::IndexType IndexType;
+  typedef typename VectorType::ValueType ScalarType;  
 
-  typedef itk::Image<ScalarType, ImageDimension> ScalarImageType;
-  typedef itk::ImageFileWriter<ScalarImageType> WriterType;
+  typedef typename itk::Image<ScalarType, ImageDimension> ScalarImageType;
+  typedef typename itk::ImageFileWriter<ScalarImageType> WriterType;
 
   char *dotPtr = strrchr(fname, '.');
   int  dotPos = dotPtr - fname;
   char prefix[256], splitName[256];
 
-  strcpy_s(prefix, fname);
+  strcpy(prefix, fname); // strcpy_s(prefix, fname);
   prefix[dotPos] = '\0';
 
   typedef ImageRegionIteratorWithIndex< TField > IteratorType;
@@ -112,10 +113,10 @@ PicslImageHelper
   VectorType vec;
   IndexType index;
   
-  std::vector<ScalarImageType::Pointer> imageVector(ImageDimension);
+  std::vector<typename ScalarImageType::Pointer> imageVector(ImageDimension);
   for (unsigned int i=0; i<ImageDimension; i++)
     {
-    ScalarImageType::Pointer image = ScalarImageType::New();
+    typename ScalarImageType::Pointer image = ScalarImageType::New();
     imageVector[i] = image;
     imageVector[i]->CopyInformation(field);
     imageVector[i]->SetRegions(field->GetLargestPossibleRegion());
@@ -134,9 +135,9 @@ PicslImageHelper
 
   for (unsigned int d=0; d<ImageDimension; d++)
     {
-    sprintf_s(splitName, "%s%d%s", prefix, d, dotPtr);
+    sprintf(splitName, "%s%d%s", prefix, d, dotPtr);
 
-    WriterType::Pointer writer = WriterType::New();
+    typename WriterType::Pointer writer = WriterType::New();
     writer->SetInput(imageVector[d]);
     writer->SetFileName( splitName );
     try
@@ -153,7 +154,7 @@ PicslImageHelper
 }
 
 template< class TVector>
-static void
+void
 PicslImageHelper
 ::CopyWithMax(TVector &maxVec, const TVector &newVec)
 {
@@ -167,7 +168,7 @@ for (unsigned int d=0; d<TVector::Dimension; d++)
 }
 
 template< class TVector>
-static void
+void
 PicslImageHelper
 ::CopyWithMin(TVector &minVec, const TVector &newVec)
 {
