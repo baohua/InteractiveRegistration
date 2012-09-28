@@ -35,6 +35,11 @@ public:
   static typename itk::VectorContainer<int, typename TRegion::IndexType>::Pointer 
     GetCorners( const TRegion &region);
 
+  template< class TVector >
+  static void CopyWithMax(TVector &maxVec, const TVector &newVec);
+  template< class TVector >
+  static void CopyWithMin(TVector &minVec, const TVector &newVec);
+
   static const bool m_Debug = true;
 
 protected:

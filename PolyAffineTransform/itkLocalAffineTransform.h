@@ -145,11 +145,6 @@ public:
   void ComputeMovingMaskImageAndDenseFixedPointSet();
   void AddMaskToPointSet(PointSetPointer &pointSet, const MaskImagePointer &mask);
 
-  template< class TVector >
-  static void CopyWithMax(TVector &maxVec, const TVector &newVec);
-  template< class TVector >
-  static void CopyWithMin(TVector &minVec, const TVector &newVec);
-
 protected:
   /** Construct an LocalAffineTransform object
    *

@@ -151,6 +151,35 @@ PicslImageHelper
     }
 
 }
+
+template< class TVector>
+static void
+PicslImageHelper
+::CopyWithMax(TVector &maxVec, const TVector &newVec)
+{
+for (unsigned int d=0; d<TVector::Dimension; d++)
+    {
+    if (maxVec[d] < newVec[d])
+      {
+      maxVec[d] = newVec[d];
+      }
+    }
+}
+
+template< class TVector>
+static void
+PicslImageHelper
+::CopyWithMin(TVector &minVec, const TVector &newVec)
+{
+  for (unsigned int d=0; d<TVector::Dimension; d++)
+    {
+    if (minVec[d] > newVec[d])
+      {
+      minVec[d] = newVec[d];
+      }
+    }
+}
+
 }
 
 #endif

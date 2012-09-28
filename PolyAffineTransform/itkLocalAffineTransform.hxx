@@ -211,8 +211,8 @@ LocalAffineTransform< TScalarType, NDimensions >
     //map the transformed point to index
     this->m_FixedMaskImage->TransformPhysicalPointToContinuousIndex(mappedPoint, mappedCorner);
 
-    CopyWithMin<ContinuousIndexType>(minIndex, mappedCorner);
-    CopyWithMax<ContinuousIndexType>(maxIndex, mappedCorner);
+    PicslImageHelper::CopyWithMin<ContinuousIndexType>(minIndex, mappedCorner);
+    PicslImageHelper::CopyWithMax<ContinuousIndexType>(maxIndex, mappedCorner);
     }
   
   //allocate the moving mask with the possible region
@@ -266,8 +266,8 @@ LocalAffineTransform< TScalarType, NDimensions >
       if (pixel != 0) //foreground
         {
         //update min and max indices
-        CopyWithMin<IndexType>(minMovingMaskIndex, index1);
-        CopyWithMax<IndexType>(maxMovingMaskIndex, index1);
+        PicslImageHelper::CopyWithMin<IndexType>(minMovingMaskIndex, index1);
+        PicslImageHelper::CopyWithMax<IndexType>(maxMovingMaskIndex, index1);
         this->m_DenseFixedPointSet->SetPoint(pointId++, point2);
         }
       }
@@ -288,36 +288,6 @@ LocalAffineTransform< TScalarType, NDimensions >
   filter->Update();
 
   this->m_MovingMaskImage = filter->GetOutput();
-}
-
-template< class TScalarType, unsigned int NDimensions >
-template< class TVector>
-static void
-LocalAffineTransform< TScalarType, NDimensions >
-::CopyWithMax(TVector &maxVec, const TVector &newVec)
-{
-  for (unsigned int d=0; d<NDimensions; d++)
-    {
-    if (maxVec[d] < newVec[d])
-      {
-      maxVec[d] = newVec[d];
-      }
-    }
-}
-
-template< class TScalarType, unsigned int NDimensions >
-template< class TVector>
-void
-LocalAffineTransform< TScalarType, NDimensions >
-::CopyWithMin(TVector &minVec, const TVector &newVec)
-{
-  for (unsigned int d=0; d<NDimensions; d++)
-    {
-    if (minVec[d] > newVec[d])
-      {
-      minVec[d] = newVec[d];
-      }
-    }
 }
 
 /** Print self */

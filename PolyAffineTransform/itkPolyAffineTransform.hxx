@@ -471,8 +471,8 @@ PolyAffineTransform< TScalarType, NDimensions >
       ContinuousIndexType mappedCorner;
       firstMask->TransformPhysicalPointToContinuousIndex(cornerPoint, mappedCorner);
 
-      LocalAffineTransformType::CopyWithMin<ContinuousIndexType>(minIndex, mappedCorner);
-      LocalAffineTransformType::CopyWithMax<ContinuousIndexType>(maxIndex, mappedCorner);
+      PicslImageHelper::CopyWithMin<ContinuousIndexType>(minIndex, mappedCorner);
+      PicslImageHelper::CopyWithMax<ContinuousIndexType>(maxIndex, mappedCorner);
       }
     } //for each transform
 
