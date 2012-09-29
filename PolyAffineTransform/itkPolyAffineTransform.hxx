@@ -583,11 +583,12 @@ PolyAffineTransform< TScalarType, NDimensions >
   while (it != container->End())
     {
     frontier.push_back(it->Value());
+    std::cout << "InitializeFrontier push[]" << frontier.size() << " y=" << frontier[frontier.size()-1] << std::endl;
     it++;
     }
 
   for (int len = 0; len < 10; len++)
-    std::cout << "InitializeFrontier []" << len << " y=" << frontier[len] << std::endl;
+    std::cout << "InitializeFrontier get[]" << len << " y=" << frontier[len] << std::endl;
 }
 
 /**
