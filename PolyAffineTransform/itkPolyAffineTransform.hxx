@@ -575,8 +575,6 @@ void
 PolyAffineTransform< TScalarType, NDimensions >
 ::InitializeFrontier(FrontierType &frontier, const PointSetPointer &pointSet)
 {
-  PointType point;
-
   SizeValueType num = pointSet->GetNumberOfPoints();
   frontier.resize(num);
 
@@ -586,6 +584,9 @@ PolyAffineTransform< TScalarType, NDimensions >
     {
     frontier.push_back(it->Value());
     it++;
+    PointType point = it->Value();
+    if (point[0] <= 4 && point[1] <= 4)
+      std::cout << "InitializeFrontier " << point << std::endl;
     }
 }
 
@@ -664,6 +665,8 @@ PolyAffineTransform< TScalarType, NDimensions >
         if (traj->GetPixel(index) <= 0)
           {
           traj->SetPixel(index, ts+1); //timestamp + 1
+          if (ts==0 && index[0] == 0 && index[1] == 0)
+            std::cout << "add traj: y = " << y << std::endl;
           }
         }
       }
