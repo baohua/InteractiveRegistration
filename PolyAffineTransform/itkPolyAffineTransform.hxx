@@ -583,12 +583,8 @@ PolyAffineTransform< TScalarType, NDimensions >
   while (it != container->End())
     {
     frontier.push_back(it->Value());
-    std::cout << "InitializeFrontier push[]" << frontier.size() << " y=" << frontier[frontier.size()-1] << std::endl;
     it++;
     }
-
-  for (int len = 0; len < 10; len++)
-    std::cout << "InitializeFrontier get[]" << len << " y=" << frontier[len] << std::endl;
 }
 
 /**
@@ -666,8 +662,8 @@ PolyAffineTransform< TScalarType, NDimensions >
         if (traj->GetPixel(index) <= 0)
           {
           traj->SetPixel(index, ts+1); //timestamp + 1
-          if (index[0] == 0 && index[1] == 0)
-            std::cout << "add traj at ts= " << ts << " f=" << f << " y= " << y << std::endl;
+          //if (index[0] == 0 && index[1] == 0)
+            //std::cout << "add traj at ts= " << ts << " f=" << f << " y= " << y << std::endl;
           }
         }
       }
