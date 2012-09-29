@@ -576,7 +576,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 ::InitializeFrontier(FrontierType &frontier, const PointSetPointer &pointSet)
 {
   SizeValueType num = pointSet->GetNumberOfPoints();
-  frontier.resize(num);
+  frontier.reserve(num);
 
   typename PointSetType::PointsContainer *container = pointSet->GetPoints();
   typename PointSetType::PointsContainer::ConstIterator it = container->Begin();
