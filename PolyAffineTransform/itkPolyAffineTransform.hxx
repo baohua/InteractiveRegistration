@@ -34,7 +34,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 ::PolyAffineTransform():
   Superclass(0)
 {
-  this->m_DecayConstant = 0.1;
+  this->m_DecayConstant = 1.0;
 }
 
 // Destructor
@@ -575,10 +575,8 @@ void
 PolyAffineTransform< TScalarType, NDimensions >
 ::InitializeFrontier(FrontierType &frontier, const PointSetPointer &pointSet)
 {
-  PointType point;
-
   SizeValueType num = pointSet->GetNumberOfPoints();
-  frontier.resize(num);
+  frontier.reserve(num);
 
   typename PointSetType::PointsContainer *container = pointSet->GetPoints();
   typename PointSetType::PointsContainer::ConstIterator it = container->Begin();
@@ -664,6 +662,8 @@ PolyAffineTransform< TScalarType, NDimensions >
         if (traj->GetPixel(index) <= 0)
           {
           traj->SetPixel(index, ts+1); //timestamp + 1
+          //if (index[0] == 0 && index[1] == 0)
+            //std::cout << "add traj at ts= " << ts << " f=" << f << " y= " << y << std::endl;
           }
         }
       }

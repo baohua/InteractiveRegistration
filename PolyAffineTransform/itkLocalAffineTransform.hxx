@@ -174,6 +174,10 @@ LocalAffineTransform< TScalarType, NDimensions >
         {
         mask->TransformIndexToPhysicalPoint(it.GetIndex(), point);
         pointSet->SetPoint(pointId++, point);
+        if (point[0] <= 0.7 && point[1] <= 0.7)
+          {
+          std::cout << "AddMaskToPointSet " << point << std::endl;
+          }
       }
     }
 }
@@ -269,6 +273,10 @@ LocalAffineTransform< TScalarType, NDimensions >
         PicslImageHelper::CopyWithMin<IndexType>(minMovingMaskIndex, index1);
         PicslImageHelper::CopyWithMax<IndexType>(maxMovingMaskIndex, index1);
         this->m_DenseFixedPointSet->SetPoint(pointId++, point2);
+        if (point2[0] <= 0.7 && point2[1] <= 0.7)
+          {
+          std::cout << "ComputeMovingMaskImageAndDenseFixedPointSet " << point2 << std::endl;
+          }
         }
       }
     it.Set(pixel);
