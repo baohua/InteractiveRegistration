@@ -672,8 +672,8 @@ PolyAffineTransform< TScalarType, NDimensions >
         if (traj->GetPixel(index) <= 0)
           {
           traj->SetPixel(index, ts+1); //timestamp + 1
-          if (ts==0 && index[0] == 0 && index[1] == 0)
-            std::cout << "add traj: y = " << y << std::endl;
+          if (index[0] == 0 && index[1] == 0)
+            std::cout << "add traj at ts= " << ts << " f=" << f << " y= " << y << std::endl;
           }
         }
       }
