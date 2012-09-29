@@ -583,10 +583,12 @@ PolyAffineTransform< TScalarType, NDimensions >
   while (it != container->End())
     {
     frontier.push_back(it->Value());
-    it++;
     PointType point = it->Value();
-    if (point[0] <= 4 && point[1] <= 4)
-      std::cout << "InitializeFrontier " << point << std::endl;
+    if (point[0] <= 4 && point[1] <= 4) {
+      int len = frontier->size();
+      std::cout << "InitializeFrontier " << point << " y=" << frontier[len-1] << std::endl;
+      }
+    it++;
     }
 }
 
