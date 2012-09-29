@@ -104,7 +104,7 @@ PicslImageHelper
   int  dotPos = dotPtr - fname;
   char prefix[256], splitName[256];
 
-  strcpy(prefix, fname); // strcpy_s(prefix, fname);
+  strcpy(prefix, fname);
   prefix[dotPos] = '\0';
 
   typedef ImageRegionIteratorWithIndex< TField > IteratorType;

@@ -18,8 +18,6 @@
 #ifndef __itkLocalAffineTransform_h
 #define __itkLocalAffineTransform_h
 
-#include <iostream>
-
 #include "itkImage.h"
 #include "itkPointSet.h"
 #include "itkSpatialObject.h"

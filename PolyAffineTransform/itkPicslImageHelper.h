@@ -1,8 +1,6 @@
 #ifndef __itkPicslImageHelper_h
 #define __itkPicslImageHelper_h
 
-#include <string.h>
-
 #include "itkMacro.h"
 #include "itkObject.h"
 #include "itkSmartPointer.h"

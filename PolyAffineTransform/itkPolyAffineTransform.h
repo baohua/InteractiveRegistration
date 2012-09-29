@@ -23,6 +23,7 @@
 #include "itkSignedMaurerDistanceMapImageFilter.h"
 #include "itkNearestNeighborInterpolateImageFunction.h"
 #include "itkExponentialDisplacementFieldImageFilter.h"
+#include "itkNeighborhoodAlgorithm.h"
 
 #include "itkLocalAffineTransform.h"
 #include "itkPicslImageHelper.h"
@@ -365,6 +366,7 @@ private:
   WeightImageVectorType                     m_TrajectoryWeightImageVector;
   WeightImagePointer                        m_BoundaryWeightImage;
 
+  double                                    m_DecayConstant;
 }; //class PolyAffineTransform
 }  // namespace itk
 

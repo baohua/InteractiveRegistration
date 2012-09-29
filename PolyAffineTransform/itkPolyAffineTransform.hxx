@@ -34,6 +34,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 ::PolyAffineTransform():
   Superclass(0)
 {
+  this->m_DecayConstant = 0.1;
 }
 
 // Destructor
@@ -333,8 +334,8 @@ const typename PolyAffineTransform< TScalarType, NDimensions >::JacobianType &
 PolyAffineTransform< TScalarType, NDimensions >
 ::GetJacobian(const InputPointType & p) const
 {
-  GetJacobianWithRespectToParameters( p, this->m_Jacobian );
-  return this->m_Jacobian;
+  this->GetJacobianWithRespectToParameters( p, this->m_SharedLocalJacobian );
+  return this->m_SharedLocalJacobian;
 
 }
 
@@ -426,12 +427,10 @@ PolyAffineTransform< TScalarType, NDimensions >
   RegionType region;
   SpacingType firstSpacing;
   TScalarType diagSpacing, minDiagSpacing, firstDiagSpacing;
-  DirectionType firstDirection;
   MaskImagePointer mask, firstMask;
 
   //use the direction matrix from the first image domain
   firstMask = m_LocalAffineTransformVector[0]->GetMovingMaskImage();
-  firstDirection = firstMask->GetDirection();
 
   //compute the minimum diagonal spacing from all transforms
   firstSpacing = firstMask->GetSpacing();
@@ -484,17 +483,18 @@ PolyAffineTransform< TScalarType, NDimensions >
     {
     minScaledIndex[d] = minIndex[d] / scalingFactor;
     maxScaledIndex[d] = maxIndex[d] / scalingFactor;
-    //add some boundaries
+    //pad with some boundaries
     minScaledIndex[d]--;
     maxScaledIndex[d]++;
     }
 
-  IndexType scaledIndex1, scaledIndex2;
-  scaledIndex1.CopyWithRound(minScaledIndex);
-  scaledIndex2.CopyWithRound(maxScaledIndex);
+  IndexType paddedIndex1, paddedIndex2;
+  paddedIndex1.CopyWithRound(minScaledIndex);
+  paddedIndex2.CopyWithRound(maxScaledIndex);
+
   RegionType unionRegion;
-  unionRegion.SetIndex( scaledIndex1 );
-  unionRegion.SetUpperIndex( scaledIndex2 );
+  unionRegion.SetIndex( paddedIndex1 );
+  unionRegion.SetUpperIndex( paddedIndex2 );
 
   this->m_BoundaryMask = MaskImageType::New();
   this->m_BoundaryMask->SetOrigin(firstMask->GetOrigin());
@@ -502,9 +502,31 @@ PolyAffineTransform< TScalarType, NDimensions >
   this->m_BoundaryMask->SetSpacing( unionSpacing );
   this->m_BoundaryMask->SetRegions( unionRegion );
 
-  this->m_BoundaryMask->Allocate();  
+  this->m_BoundaryMask->Allocate();
+
   this->m_BoundaryMask->FillBuffer(1);
 
+  //set its boundary to zeros
+  typedef typename itk::NeighborhoodAlgorithm
+    ::ImageBoundaryFacesCalculator<MaskImageType> FaceCalculatorType;
+  typedef typename FaceCalculatorType::FaceListType FaceListType;
+  FaceCalculatorType faceCalculator;
+  FaceListType faceList;
+
+  SizeType radius;
+  radius.Fill(1);
+
+  faceList = faceCalculator(this->m_BoundaryMask, unionRegion, radius);
+  typename FaceListType::iterator fit = faceList.begin();
+  ++fit; //skip the first non-boundary face
+  for( ; fit != faceList.end(); ++fit)
+    {
+    itk::ImageRegionIterator<MaskImageType> it(this->m_BoundaryMask, *fit);
+    for(it.GoToBegin(); !it.IsAtEnd(); ++it)
+      {
+      it.Set(0); //set the boundary pixels to zero
+      }
+    }
 }
 
 /**
@@ -751,7 +773,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 
     if (distance > 0) 
       {
-      weight = vcl_exp(-distance); //weight decreases with distance
+      weight = vcl_exp(-distance * this->m_DecayConstant); //weight decreases with distance
       weight *= boundaryWeight;
       }
     else
@@ -794,7 +816,8 @@ PolyAffineTransform< TScalarType, NDimensions >
 
     if (distance < 0) //inside points have negative distance
       {
-      weight = 1 - vcl_exp(distance); //weight increases with abs(distance)
+      //std::cout << "boundary distance = " << distance << std::endl;
+      weight = 1 - vcl_exp(distance * this->m_DecayConstant); //weight increases with abs(distance)
       }
     else
       {
@@ -818,6 +841,8 @@ PolyAffineTransform< TScalarType, NDimensions >
     }
 
   this->InitializeBoundaryMask();
+  PicslImageHelper::WriteImage<MaskImageType>
+    (this->m_BoundaryMask, "tmpBoundMask.nii");
 
   unsigned int transformNumber = this->m_LocalAffineTransformVector.size();
   this->m_TrajectoryWeightImageVector.resize(transformNumber);
