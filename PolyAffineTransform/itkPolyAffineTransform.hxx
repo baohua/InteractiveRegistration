@@ -34,7 +34,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 ::PolyAffineTransform():
   Superclass(0)
 {
-  this->m_DecayConstant = 0.1;
+  this->m_DecayConstant = 1.0;
 }
 
 // Destructor
