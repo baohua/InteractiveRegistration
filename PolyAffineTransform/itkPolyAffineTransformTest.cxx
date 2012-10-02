@@ -62,7 +62,7 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   double translation1[] = {30, 30, 30};
   double translation2[] = { 0, 30,  0};
   for (unsigned int d=0; d<Dimension; d++)
-    {
+    { 
     affineOffset1[d] = translation1[d];
     affineOffset2[d] = translation2[d];
     }

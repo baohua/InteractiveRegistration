@@ -938,7 +938,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 
     DisplacementFieldPointer exponentialField = 
       this->ComputeExponentialDisplacementField(this->m_VelocityField);
-
+ 
     typedef itk::ComposeDisplacementFieldsImageFilter<DisplacementFieldType> ComposerType;
     ComposerType::Pointer composer = ComposerType::New();
     composer->SetDisplacementField( exponentialField );

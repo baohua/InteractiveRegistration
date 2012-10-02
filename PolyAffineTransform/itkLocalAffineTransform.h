@@ -91,7 +91,7 @@ public:
   typedef typename Superclass::InverseMatrixType         InverseMatrixType;
   typedef typename Superclass::CenterType                CenterType;
   typedef typename Superclass::OffsetType                OffsetType;
-  typedef typename Superclass::TranslationType           TranslationType;
+  typedef typename Superclass::TranslationType           TranslationType; 
 
   /** Base inverse transform type. This type should not be changed to the
    * concrete inverse transform type or inheritance would be lost.*/

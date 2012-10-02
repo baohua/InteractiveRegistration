@@ -181,7 +181,7 @@ PicslImageHelper
       std::cerr << " : "  << e.GetDescription();
       }
     }
-
+ 
 }
 
 template< class TVector>

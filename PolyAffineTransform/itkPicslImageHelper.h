@@ -23,7 +23,7 @@ public:
   /** New macro for creation of through a Smart Pointer   */
   itkNewMacro(Self);
 
-  template< class TField>
+  template< class TField> 
   static void WriteDisplacementField(typename TField::Pointer field, char *fname);
   template< class TField>
   static void WriteDisplacementField(typename TField::Pointer field, char *fname, int id);

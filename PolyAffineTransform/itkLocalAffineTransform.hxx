@@ -264,7 +264,7 @@ LocalAffineTransform< TScalarType, NDimensions >
 
     insideImage = this->m_FixedMaskImage->TransformPhysicalPointToIndex(point2, index2);
     pixel = 0;
-    if (insideImage)
+    if (insideImage) 
       {
       pixel = this->m_FixedMaskImage->GetPixel(index2);
       if (pixel != 0) //foreground

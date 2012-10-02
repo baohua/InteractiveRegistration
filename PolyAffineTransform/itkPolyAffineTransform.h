@@ -314,7 +314,7 @@ public:
    *  The trajectory background uses 0, and m_TimeStampMin is mapped to 1.
    */
   int TranslateTimeStamp(int timeStamp)
-  {
+  { 
     //background --> 0;
     //m_TimeStampMin --> 1
     return timeStamp - m_TimeStampMin + 1;
