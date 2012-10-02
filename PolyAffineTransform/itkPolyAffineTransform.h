@@ -23,6 +23,7 @@
 #include "itkSignedMaurerDistanceMapImageFilter.h"
 #include "itkNearestNeighborInterpolateImageFunction.h"
 #include "itkExponentialDisplacementFieldImageFilter.h"
+#include "itkComposeDisplacementFieldsImageFilter.h"
 #include "itkNeighborhoodAlgorithm.h"
 
 #include "itkLocalAffineTransform.h"
@@ -171,7 +172,7 @@ public:
   typedef typename itk::Image<TScalarType, NDimensions>        WeightImageType;
   typedef typename WeightImageType::Pointer                    WeightImagePointer;
 
-  typedef std::vector<PointType>                               FrontierType;
+  typedef std::vector<PointSetPointer>                         PointSetVectorType;
 
   /** TrajectoryImageType: pixel values denotes time stamps */
   typedef itk::Image<int, NDimensions>                         TrajectoryImageType;
@@ -300,33 +301,47 @@ public:
     this->Modified();
   }
 
-  virtual DisplacementFieldType* GetVelocityField();
-
   void SetTimeStampLog(unsigned int timeStampLog)
   {
     this->m_TimeStampLog = timeStampLog;
-    this->m_TimeStampNumber = 1 << timeStampLog;
+    this->m_TimeStampExp = 1 << timeStampLog;
+
+    this->m_TimeStampMin = 0;
+    this->m_TimeStampMax = m_TimeStampMin + m_TimeStampExp;
+  }
+
+  /** Translate the time stamp to a nonegative number stored in a trajectory.
+   *  The trajectory background uses 0, and m_TimeStampMin is mapped to 1.
+   */
+  int TranslateTimeStamp(int timeStamp)
+  {
+    //background --> 0;
+    //m_TimeStampMin --> 1
+    return timeStamp - m_TimeStampMin + 1;
   }
 
   TScalarType GetDiagonalSpacing(MaskImagePointer mask);
+
+  bool InitializeBuffers();
   void InitializeBoundaryMask();
-  void AddMaskToTrajectory(TrajectoryImagePointer &traj, 
-    const MaskImagePointer &mask, 
-    typename TrajectoryImageType::PixelType label);
-  void InitializeFrontier(FrontierType &frontier, const PointSetPointer &pointSet);
-  TrajectoryImagePointer ComputeTrajectory(unsigned int transformId);
-  WeightImagePointer ComputeTrajectoryWeightImage(TrajectoryImagePointer traj,
-                                                  WeightImagePointer boundaryWeightImage);
+
+  void InitializeTrajectory(unsigned int transformId);
+  void InitializeFrontier(unsigned int transformId);
+  void RewindTrajectory(unsigned int transformId, int stopTime);
+  void ComputeNextTimeTrajectory(unsigned int transformId, int timeStamp,
+    bool &overlap, unsigned int &overlapPointId);
+
   WeightImagePointer ComputeBoundaryWeightImage();
-  void ComputeVelocityField();
-  DisplacementFieldType* GetExponentialDisplacementField();
-  /**
-   * Given a startPoint and its next move to endPoint. Put all points on the
-   * segment (startPoint, endPoint] to the trajectory and frontier.
-   */
-  void AddSegmentIntoTrajectory(PointType startPoint, PointType endPoint,
-                           TrajectoryImagePointer traj, FrontierType *frontier,
-                           int background, int foreground);
+  WeightImagePointer ComputeTrajectoryWeightImage(
+    TrajectoryImagePointer traj, WeightImagePointer boundaryWeightImage);
+
+  void ComputeWeightedSumOfVelocityFields();
+  DisplacementFieldPointer ComputeExponentialDisplacementField(
+    const DisplacementFieldPointer &velocityField);
+  void ComputeVelocityFieldBeforeOverlap(int &stopTime);
+
+  void ComputeDisplacementField();
+  virtual DisplacementFieldType* GetDisplacementField();
 
 protected:
   /** Construct an PolyAffineTransform object
@@ -349,24 +364,28 @@ private:
   PolyAffineTransform(const Self & other);
   const Self & operator=(const Self &);
 
-  unsigned int                              m_TimeStampNumber;
-  unsigned int                              m_TimeStampLog;
+  int                                       m_TimeStampExp;
+  int                                       m_TimeStampLog;
+  int                                       m_TimeStampMin;
+  int                                       m_TimeStampMax;
 
   MaskImagePointer                          m_BoundaryMask;
 
   //Merged velocity field
   DisplacementFieldPointer                  m_VelocityField;
+
   //Output displacement field
   DisplacementFieldPointer                  m_DisplacementField;
 
-  LocalAffineTransformVectorType            m_LocalAffineTransformVector;
-  
+  LocalAffineTransformVectorType            m_LocalAffineTransformVector;  
   TrajectoryImageVectorType                 m_TrajectoryImageVector;
-
+  PointSetVectorType                        m_FrontierVector;
+  
   WeightImageVectorType                     m_TrajectoryWeightImageVector;
   WeightImagePointer                        m_BoundaryWeightImage;
 
   double                                    m_DecayConstant;
+
 }; //class PolyAffineTransform
 }  // namespace itk
 

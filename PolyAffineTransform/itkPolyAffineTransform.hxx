@@ -34,7 +34,8 @@ PolyAffineTransform< TScalarType, NDimensions >
 ::PolyAffineTransform():
   Superclass(0)
 {
-  this->m_DecayConstant = 1.0;
+  this->m_DecayConstant = 1.0/8;
+  this->SetTimeStampLog(8); //by default 2^8 time stamps
 }
 
 // Destructor
@@ -530,41 +531,6 @@ PolyAffineTransform< TScalarType, NDimensions >
 }
 
 /**
- * Initialize the trajectory of each transform at time stamp 0 according to
- * the inital spatial object for the local affine transform.
- */
-template< class TScalarType,
-          unsigned int NDimensions >
-void
-PolyAffineTransform< TScalarType, NDimensions >
-::AddMaskToTrajectory(TrajectoryImagePointer &traj, 
-                      const MaskImagePointer &mask, 
-                      typename TrajectoryImageType::PixelType label)
-{
-  IndexType index, index2;
-  PointType point;
-  bool inside;
-  
-  typedef ImageRegionIteratorWithIndex< TrajectoryImageType > IteratorType;
-  IteratorType it( traj, traj->GetLargestPossibleRegion() );
-
-  for( it.GoToBegin(); !it.IsAtEnd(); ++it )
-    {
-    index = it.GetIndex();
-    traj->TransformIndexToPhysicalPoint( index, point );
-    inside = mask->TransformPhysicalPointToIndex( point, index2 );
-
-    if( inside )
-      {
-      if (mask->GetPixel( index2 ) > 0)
-        {
-        it.Set(label); //forebround
-        }
-      }
-    } //for iterator
-}
-
-/**
  * Initialize the frontier during trajectory computation. The frontier
  * contains the points that are in the trajectory, but not have been
  * processed for its move at the next time stamp.
@@ -573,18 +539,60 @@ template< class TScalarType,
           unsigned int NDimensions >
 void
 PolyAffineTransform< TScalarType, NDimensions >
-::InitializeFrontier(FrontierType &frontier, const PointSetPointer &pointSet)
+::InitializeFrontier(unsigned int transformId)
 {
+  PointSetPointer pointSet = m_LocalAffineTransformVector[transformId]->GetDenseFixedPointSet();
   SizeValueType num = pointSet->GetNumberOfPoints();
-  frontier.reserve(num);
+
+  PointSetPointer frontier = PointSetType::New(); 
 
   typename PointSetType::PointsContainer *container = pointSet->GetPoints();
   typename PointSetType::PointsContainer::ConstIterator it = container->Begin();
+
+  unsigned int pointId = 0;
   while (it != container->End())
     {
-    frontier.push_back(it->Value());
+    frontier->SetPoint(pointId++, it->Value());
     it++;
     }
+
+  m_FrontierVector[transformId] = frontier;
+}
+
+template< class TScalarType,
+          unsigned int NDimensions >
+void
+PolyAffineTransform< TScalarType, NDimensions >
+::InitializeTrajectory(unsigned int transformId)
+{
+  TrajectoryImagePointer traj = TrajectoryImageType::New();
+  traj->CopyInformation(this->m_BoundaryMask);
+  traj->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
+  traj->Allocate();
+  traj->FillBuffer(0);
+
+  this->m_TrajectoryImageVector[transformId] = traj;
+}
+
+template< class TScalarType,
+          unsigned int NDimensions >
+void
+PolyAffineTransform< TScalarType, NDimensions >
+::RewindTrajectory(unsigned int transformId, int stopTime)
+{
+  TrajectoryImagePointer traj = this->m_TrajectoryImageVector[transformId];
+  int stopTimeStamp = this->TranslateTimeStamp(stopTime);
+
+  typedef ImageRegionIteratorWithIndex< TrajectoryImageType > IteratorType;
+  IteratorType it( traj, traj->GetLargestPossibleRegion() );
+
+  for( it.GoToBegin(); !it.IsAtEnd(); ++it )
+    {
+    if (it.Get() > stopTimeStamp)
+      {
+      it.Set(0); //set to background
+      }
+    }  
 }
 
 /**
@@ -593,150 +601,65 @@ PolyAffineTransform< TScalarType, NDimensions >
  */
 template< class TScalarType,
           unsigned int NDimensions >
-typename PolyAffineTransform< TScalarType, NDimensions >::TrajectoryImagePointer
+void
 PolyAffineTransform< TScalarType, NDimensions >
-::ComputeTrajectory(unsigned int transformId)
+::ComputeNextTimeTrajectory(unsigned int transformId, int timeStamp,
+                            bool &overlap, unsigned int &overlapPointId)
 {
-  int N = this->m_TimeStampNumber;
-
   LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[transformId];
 
   typedef typename LocalAffineTransformType::VelocityAffineTransformPointer VelocityAffineTransformPointer;
   VelocityAffineTransformPointer velocity = trans->GetVelocityAffineTransform();
 
-  TrajectoryImagePointer traj = TrajectoryImageType::New();
-  traj->CopyInformation(this->m_BoundaryMask);
-  traj->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
-  traj->Allocate();
-  traj->FillBuffer(0);
+  TrajectoryImagePointer traj = this->m_TrajectoryImageVector[transformId];
+  TrajectoryImagePointer trajOther;
 
-  //this->AddMaskToTrajectory(traj, trans->GetFixedMaskImage(), 1);
-  //this->AddMaskToTrajectory(traj, trans->GetMovingMaskImage(), 1);
-  
-  typedef itk::NearestNeighborInterpolateImageFunction< TrajectoryImageType, TScalarType >
-                                                       InterpolatorType;
-  typename InterpolatorType::Pointer interpolator = InterpolatorType::New();
-  interpolator->SetInputImage(traj);
+  PointSetPointer frontierNow = this->m_FrontierVector[transformId];
+  PointSetPointer frontierNext = PointSetType::New();
+  unsigned int pointId = 0;
 
-  //queueNext stores the unprocessed points in
-  //trajectory(j/N, M) - trajectory((j-1)/N, M).
-	FrontierType frontier0, frontier1;
-  FrontierType *frontierNow, *frontierNext;
-  this->InitializeFrontier(frontier0, trans->GetDenseFixedPointSet());
-
-  MaskImagePointer domain = this->m_BoundaryMask;
-	for (int ts=0; ts<=N; ts++)
+  overlap = false;
+  for (int f=0; !overlap && f<frontierNow->GetNumberOfPoints(); f++)
     {
-    if (ts % 2 == 0) 
-      {
-		  frontierNow = &frontier0;
-		  frontierNext = &frontier1;
-      }
-    else
-      {
-		  frontierNow = &frontier1;
-		  frontierNext = &frontier0;
-      }
-    frontierNext->clear();
-    //std::cout << "frontNow size = " << frontierNow->size() << std::endl;
+		PointType y = frontierNow->GetPoint(f);
+    PointType z, step;
 
-		for (int f=0; f<frontierNow->size(); f++)
-      {
-			PointType y = frontierNow->at(f);
-      PointType z, step;
-			//It will avoid accumulated error if we compute z=(1+V/N)*y by;
-      //x=T^-1 (ts,y);
-      //z=T (ts+1,x);
-      step = velocity->TransformPoint( y );
-      for (unsigned int d=0; d<NDimensions; d++)
-        {
-        z[d] = y[d] + step[d] / N;
-        }
-      frontierNext->push_back(z);
-      //this->AddSegmentIntoTrajectory(y, z, traj, frontierNext, 0, ts+1);
-
-      IndexType index;
-      bool insideImage = traj->TransformPhysicalPointToIndex(y, index);
-      if (insideImage)
-        {
-        if (traj->GetPixel(index) <= 0)
-          {
-          traj->SetPixel(index, ts+1); //timestamp + 1
-          //if (index[0] == 0 && index[1] == 0)
-            //std::cout << "add traj at ts= " << ts << " f=" << f << " y= " << y << std::endl;
-          }
-        }
-      }
-    } //for timestamp 0..N
-
-  frontier0.clear();
-  frontier1.clear();
-
-  char fname[256];
-  sprintf(fname, "tmpTraj%d.nii", transformId);
-  itk::PicslImageHelper::WriteImage<TrajectoryImageType>(traj, fname);
-
-  return traj;
-}
-
-/**
- * Given a startPoint and its next move to endPoint. Put all points on the
- * segment (startPoint, endPoint] to the trajectory and frontier.
- */
-template< class TScalarType,
-          unsigned int NDimensions >
-void
-PolyAffineTransform< TScalarType, NDimensions >
-::AddSegmentIntoTrajectory(PointType startPoint, PointType endPoint,
-                           TrajectoryImagePointer traj, FrontierType *frontier,
-                           int background, int foreground)
-{
-  ContinuousIndexType middleIndex, startIndex, endIndex;
-  typename ContinuousIndexType::VectorType diffIndex;
-  PointType middlePoint;
-  IndexType index;
-  RegionType region;
-  bool insideImage;
-  TScalarType maxDiff;
-  unsigned int maxDim;
-
-  traj->TransformPhysicalPointToContinuousIndex(startPoint, startIndex);
-  traj->TransformPhysicalPointToContinuousIndex(endPoint, endIndex);
-
-  diffIndex = endIndex - startIndex;
-  maxDim = 0;
-  maxDiff = vcl_abs(diffIndex[0]);
-  for (unsigned int d=1; d<NDimensions; d++)
-    {
-      if (maxDiff < vcl_abs(diffIndex[d]))
-        {
-        maxDim = d;
-        maxDiff = vcl_abs(diffIndex[d]);
-        }
-    }
-
-  // We need to interpolate the segment along the maxDim-th dimension.
-  typename ContinuousIndexType::VectorType stepIndex = diffIndex / maxDiff;
-  region = traj->GetLargestPossibleRegion();
-
-  middleIndex = endIndex;
-
-  for (int s=0; s<maxDiff; s++)
-    {
-    index.CopyWithRound(middleIndex);
-    insideImage = region.IsInside(index);
-    if (insideImage && traj->GetPixel(index) == background)
-      {
-      traj->SetPixel(index, foreground); //foreground = timestamp + 1
-      traj->TransformContinuousIndexToPhysicalPoint(middleIndex, middlePoint); 
-      frontier->push_back(middlePoint);      
-      }
+		//compute z=(1+V/N)*y
+    step = velocity->TransformPoint( y );
     for (unsigned int d=0; d<NDimensions; d++)
       {
-      middleIndex[d] = middleIndex[d] - stepIndex[d];      
+      z[d] = y[d] + step[d] / this->m_TimeStampExp;
       }
-    break;
+    frontierNext->SetPoint(pointId++, z);
+
+    IndexType index;
+    bool insideImage = traj->TransformPhysicalPointToIndex(y, index);
+    if (insideImage)
+      {
+      if (traj->GetPixel(index) == 0)
+        {
+        traj->SetPixel(index, this->TranslateTimeStamp(timeStamp));
+
+        //overlap detection
+        for (unsigned int t=0; !overlap && t<this->m_LocalAffineTransformVector.size(); t++)
+          {
+          if (t == transformId)
+            {
+            continue;
+            }
+          trajOther = this->m_TrajectoryImageVector[t];
+          if (trajOther->GetPixel(index) != 0) //already in another trajectory
+            {
+            overlap = true;
+            overlapPointId = f;
+            }
+          } //end for other trajectories
+        }
+      }
     }
+  
+  this->m_FrontierVector[transformId] = frontierNext;
+
 }
 
 template< class TScalarType,
@@ -831,54 +754,68 @@ PolyAffineTransform< TScalarType, NDimensions >
 
 template< class TScalarType,
           unsigned int NDimensions >
-void
+bool
 PolyAffineTransform< TScalarType, NDimensions >
-::ComputeVelocityField()
+::InitializeBuffers()
 {
-  if (m_LocalAffineTransformVector.size() == 0) 
+  if (this->m_LocalAffineTransformVector.size() == 0)
     {
-    return;
+    itkWarningMacro(
+      << "The number of local affine transforms is zero." );
+    return false;
     }
 
+  //Initialize BoundaryMask and its WeightImage
   this->InitializeBoundaryMask();
   PicslImageHelper::WriteImage<MaskImageType>
     (this->m_BoundaryMask, "tmpBoundMask.nii");
 
-  unsigned int transformNumber = this->m_LocalAffineTransformVector.size();
-  this->m_TrajectoryWeightImageVector.resize(transformNumber);
-  this->m_TrajectoryImageVector.resize(transformNumber);
-
-  this->m_BoundaryWeightImage = 
-    this->ComputeBoundaryWeightImage();
+  this->m_BoundaryWeightImage = this->ComputeBoundaryWeightImage();
   PicslImageHelper::WriteImage<WeightImageType>
     (this->m_BoundaryWeightImage, "tmpBoundWeight.nii");
 
+  //Initialize trajectory vector, its elments, and its frontier point sets
+  unsigned int transformNumber = this->m_LocalAffineTransformVector.size();
+  this->m_TrajectoryWeightImageVector.resize(transformNumber);
+  this->m_TrajectoryImageVector.resize(transformNumber);
+  this->m_FrontierVector.resize(transformNumber);
+
   for (unsigned int t=0; t<transformNumber; t++)
     {
-    this->m_TrajectoryImageVector[t] = this->ComputeTrajectory(t);
-    this->m_TrajectoryWeightImageVector[t] =
-      this->ComputeTrajectoryWeightImage(this->m_TrajectoryImageVector[t],
-                                         this->m_BoundaryWeightImage);
-    char fname[256];
-    sprintf(fname, "tmpTrajWeight%d.nii", t);
-    PicslImageHelper::WriteImage<WeightImageType>
-      (this->m_TrajectoryWeightImageVector[t], fname);
+    this->InitializeTrajectory(t);
+    this->InitializeFrontier(t);
     }
 
+  //Initialize the overall displacement field
+  this->m_DisplacementField = DisplacementFieldType::New();
+  this->m_DisplacementField->CopyInformation(this->m_BoundaryMask);
+  this->m_DisplacementField->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
+  this->m_DisplacementField->Allocate();
+
+  //Initialize the sum of velocity field
   this->m_VelocityField = DisplacementFieldType::New();
   this->m_VelocityField->CopyInformation(this->m_BoundaryMask);
   this->m_VelocityField->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
   this->m_VelocityField->Allocate();
 
+  return true;
+}
+
+template< class TScalarType,
+          unsigned int NDimensions >
+void
+PolyAffineTransform< TScalarType, NDimensions >
+::ComputeWeightedSumOfVelocityFields()
+{
   typedef typename LocalAffineTransformType::VelocityAffineTransformType 
     VelocityAffineTransformType;
   typedef typename LocalAffineTransformType::VelocityAffineTransformPointer
     VelocityAffineTransformPointer;
 
-  PointType point, velocity;
-  typename DisplacementFieldType::PixelType velocitySum;
   IndexType index;
-  TScalarType weightTraj;
+  PointType point, velocity;
+  TScalarType weight;
+  typename DisplacementFieldType::PixelType velocitySum;
 
   typedef ImageRegionIteratorWithIndex< DisplacementFieldType > IteratorType;
   IteratorType it( this->m_VelocityField, this->m_VelocityField->GetLargestPossibleRegion() );
@@ -889,58 +826,144 @@ PolyAffineTransform< TScalarType, NDimensions >
     this->m_VelocityField->TransformIndexToPhysicalPoint( index, point );
 
     velocitySum.Fill(0.0);
-    for (int i=0; i<transformNumber; i++)
+    for (int t=0; t<this->m_LocalAffineTransformVector.size(); t++)
       {
-      LocalAffineTransformPointer localAffine = this->m_LocalAffineTransformVector[i];
+      LocalAffineTransformPointer localAffine = this->m_LocalAffineTransformVector[t];
       VelocityAffineTransformPointer localVelocity = localAffine->GetVelocityAffineTransform();
 
       velocity = localVelocity->TransformPoint(point);
-      weightTraj = this->m_TrajectoryWeightImageVector[i]->GetPixel(index);
+      weight = this->m_TrajectoryWeightImageVector[t]->GetPixel(index);
 
       for (unsigned int j=0; j<NDimensions; j++)
         {
-        velocitySum[j] += weightTraj * velocity[j];
+        velocitySum[j] += weight * velocity[j];
         }
       }
     it.Set(velocitySum);
     }
-  PicslImageHelper::WriteDisplacementField<DisplacementFieldType>
-    (this->m_VelocityField, "tmpVelocitySum.nii");
-
 }
 
 template< class TScalarType,
           unsigned int NDimensions >
-typename PolyAffineTransform< TScalarType, NDimensions >::DisplacementFieldType*
+void
 PolyAffineTransform< TScalarType, NDimensions >
-::GetVelocityField()
+::ComputeVelocityFieldBeforeOverlap(int &stopTime)
 {
-  if (this->m_VelocityField.IsNull())
+  bool overlap = false;
+  int overlapTime;
+  unsigned int overlapPointId, overlapTransformId;
+
+  for (int ts = this->m_TimeStampMin; !overlap && ts <= this->m_TimeStampMax; ts++)
     {
-    this->ComputeVelocityField();
+    for (unsigned int t = 0; !overlap && t < this->m_LocalAffineTransformVector.size(); t++)
+      {
+      this->ComputeNextTimeTrajectory(t, ts, overlap, overlapPointId);
+      if (overlap)
+        {
+        overlapTime = ts;
+        overlapTransformId = t;
+        }
+      }
     }
-  return this->m_VelocityField.GetPointer();
+
+  if (!overlap)
+    {
+    overlapTime = this->m_TimeStampMax;
+    stopTime = this->m_TimeStampMax;
+    }
+  for (unsigned int t = 0; t < this->m_LocalAffineTransformVector.size(); t++)
+    {
+    PicslImageHelper::WriteImage<TrajectoryImageType>
+      (this->m_TrajectoryImageVector[t], "tmpTraj.nii", t*10000+overlapTime);
+    }
+
+  if (overlap) //rewind trajectory
+    {
+    stopTime = overlapTime - 10; //any better solution?
+    if (stopTime < this->m_TimeStampMin)
+      {
+      stopTime = this->m_TimeStampMin;
+      }
+    for (unsigned int t = 0; t < this->m_LocalAffineTransformVector.size(); t++)
+      {
+      this->RewindTrajectory(t, stopTime);
+      PicslImageHelper::WriteImage<TrajectoryImageType>
+        (this->m_TrajectoryImageVector[t], "tmpTrajRewind.nii", t*10000+stopTime);
+      }
+    }
+
+  for (unsigned int t = 0; t < this->m_LocalAffineTransformVector.size(); t++)
+    {
+    this->m_TrajectoryWeightImageVector[t] = this->ComputeTrajectoryWeightImage(
+      this->m_TrajectoryImageVector[t], this->m_BoundaryWeightImage);
+    PicslImageHelper::WriteImage<WeightImageType>
+      (this->m_TrajectoryWeightImageVector[t], "tmpTrajWeight.nii", t*10000+stopTime);
+    }
+
+  this->ComputeWeightedSumOfVelocityFields();
 }
 
 template< class TScalarType,
           unsigned int NDimensions >
 typename PolyAffineTransform< TScalarType, NDimensions >::DisplacementFieldType*
 PolyAffineTransform< TScalarType, NDimensions >
-::GetExponentialDisplacementField()
+::GetDisplacementField()
 {
   if (this->m_DisplacementField.IsNull())
     {
-    ExponentialImageFilterPointer filter = ExponentialImageFilterType::New();
-    filter->SetInput(this->GetVelocityField());
-
-    filter->SetAutomaticNumberOfIterations(true);
-    //filter->SetMaximumNumberOfIterations( this->m_TimeStampLog );
-    filter->Update();
-
-    this->m_DisplacementField = filter->GetOutput();
+    this->ComputeDisplacementField();
     }
+  return this->m_DisplacementField;
+}
 
-  return this->m_DisplacementField.GetPointer();
+template< class TScalarType,
+          unsigned int NDimensions >
+void
+PolyAffineTransform< TScalarType, NDimensions >
+::ComputeDisplacementField()
+{
+  this->InitializeBuffers();
+  
+  typedef typename DisplacementFieldType::PixelType VectorType;
+  VectorType disp;
+  disp.Fill(0);
+  this->m_DisplacementField->FillBuffer(disp); //identity transform
+
+  int stopTime = -1;
+  while (stopTime < this->m_TimeStampMax)
+    {
+    this->ComputeVelocityFieldBeforeOverlap(stopTime);
+    PicslImageHelper::WriteDisplacementField<DisplacementFieldType>
+      (this->m_VelocityField, "tmpVelocitySum.nii", stopTime);
+
+    DisplacementFieldPointer exponentialField = 
+      this->ComputeExponentialDisplacementField(this->m_VelocityField);
+
+    typedef itk::ComposeDisplacementFieldsImageFilter<DisplacementFieldType> ComposerType;
+    ComposerType::Pointer composer = ComposerType::New();
+    composer->SetDisplacementField( exponentialField );
+    composer->SetWarpingField( this->m_DisplacementField );
+    composer->Update();
+
+    this->m_DisplacementField = composer->GetOutput();
+    this->m_DisplacementField->DisconnectPipeline();
+    }
+}
+
+template< class TScalarType,
+          unsigned int NDimensions >
+typename PolyAffineTransform< TScalarType, NDimensions >::DisplacementFieldPointer
+PolyAffineTransform< TScalarType, NDimensions >
+::ComputeExponentialDisplacementField(const DisplacementFieldPointer &velocityField)
+{
+  ExponentialImageFilterPointer filter = ExponentialImageFilterType::New();
+  filter->SetInput(velocityField);
+
+  filter->SetAutomaticNumberOfIterations(true);
+  filter->Update();
+
+  DisplacementFieldPointer exponentialField = filter->GetOutput();
+  return exponentialField;
 }
 
 } // namespace

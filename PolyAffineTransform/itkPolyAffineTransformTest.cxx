@@ -116,7 +116,7 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   polyTransform->AddLocalAffineTransform(localTransform2);
   polyTransform->SetTimeStampLog(8);
 
-  DisplacementFieldType::Pointer displacementField = polyTransform->GetExponentialDisplacementField();
+  DisplacementFieldType::Pointer displacementField = polyTransform->GetDisplacementField();
 
   WriterType::Pointer writer = WriterType::New();
   writer->SetInput(displacementField);

@@ -58,6 +58,16 @@ PicslImageHelper
 template< class TImage>
 void 
 PicslImageHelper
+::WriteImage(typename TImage::Pointer image, char *fname, int id)
+{
+  char newName[256];
+  PicslImageHelper::AppendNumberToFileName(newName, fname, id);
+  PicslImageHelper::WriteImage<TImage>(image, newName);
+}
+
+template< class TImage>
+void 
+PicslImageHelper
 ::WriteImage(typename TImage::Pointer image, char *fname)
 {
   if (!PicslImageHelper::m_Debug)
@@ -83,6 +93,33 @@ PicslImageHelper
   return;
 }
 
+char * 
+PicslImageHelper
+::AppendNumberToFileName(char *numberedFileName, const char *fname, int id)
+{
+  const char *dotPtr = strchr(fname, '.');
+  int  dotPos = dotPtr - fname;
+  char prefix[256], splitName[256];
+
+  strcpy(prefix, fname);
+  prefix[dotPos] = '\0';
+
+  sprintf(splitName, "%s%d%s", prefix, id, dotPtr);
+  strcpy(numberedFileName, splitName);
+
+  return numberedFileName;
+}
+
+template< class TField>
+void 
+PicslImageHelper
+::WriteDisplacementField(typename TField::Pointer field, char *fname, int id)
+{
+  char newName[256];
+  PicslImageHelper::AppendNumberToFileName(newName, fname, id);
+  PicslImageHelper::WriteDisplacementField<TField>(field, newName);
+}
+
 template< class TField>
 void 
 PicslImageHelper
@@ -99,13 +136,6 @@ PicslImageHelper
 
   typedef typename itk::Image<ScalarType, ImageDimension> ScalarImageType;
   typedef typename itk::ImageFileWriter<ScalarImageType> WriterType;
-
-  char *dotPtr = strrchr(fname, '.');
-  int  dotPos = dotPtr - fname;
-  char prefix[256], splitName[256];
-
-  strcpy(prefix, fname);
-  prefix[dotPos] = '\0';
 
   typedef ImageRegionIteratorWithIndex< TField > IteratorType;
   IteratorType it( field, field->GetLargestPossibleRegion() );
@@ -135,18 +165,19 @@ PicslImageHelper
 
   for (unsigned int d=0; d<ImageDimension; d++)
     {
-    sprintf(splitName, "%s%d%s", prefix, d, dotPtr);
+    char newName[256];
+    PicslImageHelper::AppendNumberToFileName(newName, fname, d);
 
     typename WriterType::Pointer writer = WriterType::New();
     writer->SetInput(imageVector[d]);
-    writer->SetFileName( splitName );
+    writer->SetFileName( newName );
     try
       {
       writer->Update();
       }
     catch ( itk::ExceptionObject & e )
       {
-      std::cerr << "Exception detected while generating displacement field" << splitName;
+      std::cerr << "Exception detected while generating displacement field" << newName;
       std::cerr << " : "  << e.GetDescription();
       }
     }

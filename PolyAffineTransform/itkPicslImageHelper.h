@@ -25,13 +25,19 @@ public:
 
   template< class TField>
   static void WriteDisplacementField(typename TField::Pointer field, char *fname);
+  template< class TField>
+  static void WriteDisplacementField(typename TField::Pointer field, char *fname, int id);
 
   template< class TImage>
   static void WriteImage(typename TImage::Pointer image, char *fname);
+  template< class TImage>
+  static void WriteImage(typename TImage::Pointer image, char *fname, int id);
 
   template< class TRegion>
   static typename itk::VectorContainer<int, typename TRegion::IndexType>::Pointer 
     GetCorners( const TRegion &region);
+
+  static char *AppendNumberToFileName(char *numberedFileName, const char *fname, int id);
 
   template< class TVector >
   static void CopyWithMax(TVector &maxVec, const TVector &newVec);
