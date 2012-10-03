@@ -113,9 +113,11 @@ public:
   typedef typename itk::ContinuousIndex<TScalarType, NDimensions>
                                                         ContinuousIndexType;
 
-  typedef AffineTransform< TScalarType, NDimensions >   VelocityAffineTransformType;
-  typedef typename VelocityAffineTransformType::Pointer          VelocityAffineTransformPointer;
-  virtual VelocityAffineTransformType* GetVelocityAffineTransform();
+  typedef Superclass                                    AffineTransformType;
+  typedef typename AffineTransformType::Pointer         AffineTransformPointer;
+
+  virtual AffineTransformType* GetVelocityAffineTransform();
+  virtual AffineTransformType* GetPartialVelocityAffineTransform(double timePeriod);
 
   void AddFixedPoint(const InputPointType point);
   
@@ -128,8 +130,8 @@ public:
   /** Get the Mask Image. */
   itkGetObjectMacro(MovingMaskImage, MaskImageType);
 
-  itkSetObjectMacro(DenseFixedPointSet, PointSetType);
-  itkGetObjectMacro(DenseFixedPointSet, PointSetType);
+  itkSetObjectMacro(SamplePointSet, PointSetType);
+  itkGetObjectMacro(SamplePointSet, PointSetType);
 
   /** Set the Mask Image from a Spatial Object.  */
   template< class TSpatialObject > 
@@ -140,8 +142,35 @@ public:
                                 DirectionType direction,
                                 SpacingType spacing,
                                 SizeType size);
-  void ComputeMovingMaskImageAndDenseFixedPointSet();
-  void AddMaskToPointSet(PointSetPointer &pointSet, const MaskImagePointer &mask);
+
+  void ComputeMovingMaskImage();
+  void ComputeSamplePointSet(double timeStamp);
+
+  /** Compute the principal logarithm of an affine transform */
+  AffineTransformPointer ComputeLogarithmTransform(AffineTransformPointer affineTransform);
+
+  /** Compute the exponential of an affine transform */
+  AffineTransformPointer ComputeExponentialTransform(AffineTransformPointer affineTransform);
+
+  /**
+   * The existing method AffineTransform::Scale(factor) scales around the center.
+   * Instead, we scale around (0,0) in ScaleMatrixOffset().
+   */
+  AffineTransformPointer ScaleMatrixOffset(AffineTransformPointer velocity, double factor);
+
+  void SetHomogeneousTransform(AffineTransformPointer &affineTransform, 
+    const vnl_matrix<TScalarType> &homoMatrix, InputPointType center);
+
+  void GetHomogeneousMatrix(vnl_matrix<TScalarType> &homoMatrix, 
+    const AffineTransformPointer &affineTransform);
+
+  AffineTransformPointer GetPartialTransform(double factor);
+  AffineTransformPointer GetResidualTransform(double portion);
+
+  void WarpMaskIntoPointSet(PointSetPointer &pointSet, const MaskImagePointer &mask,
+                         const AffineTransformPointer &transform);
+  void WarpFixedMaskIntoPointSet(double timeStamp);
+  void WarpMovingMaskIntoPointSet(double timeStamp);
 
 protected:
   /** Construct an LocalAffineTransform object
@@ -162,18 +191,20 @@ protected:
   /** Print contents of an LocalAffineTransform */
   void PrintSelf(std::ostream & s, Indent indent) const;
 
-  void ComputePrincipalLogorithm();
-
 private:
 
   LocalAffineTransform(const Self & other);
   const Self & operator=(const Self &);
 
-  VelocityAffineTransformPointer m_VelocityAffineTransform;
+  double m_StartTime, m_TimePeriod;
+
+  AffineTransformPointer m_VelocityAffineTransform;
+  AffineTransformPointer m_PartialVelocityAffineTransform;
+
   PointSetPointer m_FixedPointSet;
 
   //points in the moving mask warped to fixed domain
-  PointSetPointer m_DenseFixedPointSet;
+  PointSetPointer m_SamplePointSet;
 
   MaskImagePointer m_FixedMaskImage;
   MaskImagePointer m_MovingMaskImage;

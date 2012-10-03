@@ -325,20 +325,23 @@ public:
   bool InitializeBuffers();
   void InitializeBoundaryMask();
 
-  void InitializeTrajectory(unsigned int transformId);
+  void InitializeTrajectory(TrajectoryImagePointer &traj);
   void InitializeFrontier(unsigned int transformId);
   void RewindTrajectory(unsigned int transformId, int stopTime);
+
   void ComputeNextTimeTrajectory(unsigned int transformId, int timeStamp,
     bool &overlap, unsigned int &overlapPointId);
+  bool PointExistsInOtherTrajectories(unsigned int transformId, IndexType index);
+  void CombineTrajectories();
 
   WeightImagePointer ComputeBoundaryWeightImage();
-  WeightImagePointer ComputeTrajectoryWeightImage(
-    TrajectoryImagePointer traj, WeightImagePointer boundaryWeightImage);
+  WeightImagePointer ComputeTrajectoryWeightImage(TrajectoryImagePointer traj);
 
-  void ComputeWeightedSumOfVelocityFields();
+  void ComputeWeightedSumOfVelocityFields(int startTime, int stopTime);
   DisplacementFieldPointer ComputeExponentialDisplacementField(
     const DisplacementFieldPointer &velocityField);
-  void ComputeVelocityFieldBeforeOverlap(int &stopTime);
+
+  void ComputeVelocityFieldBeforeOverlap(int startTime, int &stopTime);
 
   void ComputeDisplacementField();
   virtual DisplacementFieldType* GetDisplacementField();
@@ -371,20 +374,27 @@ private:
 
   MaskImagePointer                          m_BoundaryMask;
 
-  //Merged velocity field
+  //Summed velocity field
   DisplacementFieldPointer                  m_VelocityField;
-
-  //Output displacement field
+  //Total displacement field
   DisplacementFieldPointer                  m_DisplacementField;
 
   LocalAffineTransformVectorType            m_LocalAffineTransformVector;  
   TrajectoryImageVectorType                 m_TrajectoryImageVector;
   PointSetVectorType                        m_FrontierVector;
   
+  TrajectoryImagePointer                    m_CombinedTrajectoryImage;
+  WeightImagePointer                        m_CombinedTrajectoryWeightImage;
+
   WeightImageVectorType                     m_TrajectoryWeightImageVector;
   WeightImagePointer                        m_BoundaryWeightImage;
 
-  double                                    m_DecayConstant;
+  int                                       m_PadBoundary;
+  int                                       m_PadTrajectory;
+
+  //for exponential decay rates
+  double                                    m_SquaredSigmaBoundary;
+  double                                    m_SquaredSigmaTrajectory;
 
 }; //class PolyAffineTransform
 }  // namespace itk

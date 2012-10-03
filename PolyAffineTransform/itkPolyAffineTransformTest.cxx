@@ -103,12 +103,12 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   MaskImageType::SizeType size;
   size.Fill(128);
   localTransform1->ComputeFixedMaskImageFromSpatialObject<SceneType>(scene1, size);
-  localTransform1->ComputeMovingMaskImageAndDenseFixedPointSet();
+  localTransform1->ComputeMovingMaskImage();
   itk::PicslImageHelper::WriteImage<LocalAffineTransformType::MaskImageType>(localTransform1->GetFixedMaskImage(), "tmpFixedMask0.nii");
   itk::PicslImageHelper::WriteImage<LocalAffineTransformType::MaskImageType>(localTransform1->GetMovingMaskImage(), "tmpMovingMask0.nii");
 
   localTransform2->ComputeFixedMaskImageFromSpatialObject<SceneType>(scene2, size);
-  localTransform2->ComputeMovingMaskImageAndDenseFixedPointSet();
+  localTransform2->ComputeMovingMaskImage();
   itk::PicslImageHelper::WriteImage<LocalAffineTransformType::MaskImageType>(localTransform2->GetFixedMaskImage(), "tmpFixedMask1.nii");
   itk::PicslImageHelper::WriteImage<LocalAffineTransformType::MaskImageType>(localTransform2->GetMovingMaskImage(), "tmpMovingMask1.nii");
 
