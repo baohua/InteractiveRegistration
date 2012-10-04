@@ -30,7 +30,8 @@ template< class TScalarType, unsigned int NDimensions >
 LocalAffineTransform< TScalarType, NDimensions >::LocalAffineTransform():Superclass(ParametersDimension)
 {
   this->m_StartTime = 0.0;
-  this->m_TimePeriod = 1.0;
+  this->m_StopTime = 0.0;
+  this->m_TimePeriod = 0.0;
 }
 
 /** Constructor with default arguments */
@@ -39,7 +40,8 @@ LocalAffineTransform< TScalarType, NDimensions >::LocalAffineTransform(unsigned 
   Superclass(parametersDimension)
 {
   this->m_StartTime = 0.0;
-  this->m_TimePeriod = 1.0;
+  this->m_StopTime = 0.0;
+  this->m_TimePeriod = 0.0;
 }
 
 /** Constructor with explicit arguments */
@@ -49,7 +51,8 @@ LocalAffineTransform< TScalarType, NDimensions >::LocalAffineTransform(const Mat
   Superclass(matrix, offset)
 {
   this->m_StartTime = 0.0;
-  this->m_TimePeriod = 1.0;
+  this->m_StopTime = 0.0;
+  this->m_TimePeriod = 0.0;
 }
 
 /**  Destructor */
@@ -226,6 +229,7 @@ LocalAffineTransform< TScalarType, NDimensions >
   AffineTransformPointer partialTransform = AffineTransform::New();
   if (factor == 0)
     {
+    partialTransform->SetCenter(this->GetCenter());
     partialTransform->SetIdentity();
     return partialTransform;
     }
@@ -238,6 +242,7 @@ LocalAffineTransform< TScalarType, NDimensions >
     }
   else if (factor == -1)
     {
+    partialTransform->SetCenter(this->GetCenter());
     bool invertible = this->GetInverse(partialTransform);
     if (!invertible)
       {

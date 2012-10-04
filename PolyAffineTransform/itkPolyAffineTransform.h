@@ -304,8 +304,10 @@ public:
   void SetTimeStampLog(unsigned int timeStampLog)
   {
     this->m_TimeStampLog = timeStampLog;
+    //m_TimeStampExp is the number of time stamps
     this->m_TimeStampExp = 1 << timeStampLog;
 
+    //usually m_TimeStampMin starts with zero, but not always
     this->m_TimeStampMin = 0;
     this->m_TimeStampMax = m_TimeStampMin + m_TimeStampExp;
   }
@@ -313,11 +315,16 @@ public:
   /** Translate the time stamp to a nonegative number stored in a trajectory.
    *  The trajectory background uses 0, and m_TimeStampMin is mapped to 1.
    */
-  int TranslateTimeStamp(int timeStamp)
+  int TranslateTimeStamp(int timeStep)
   { 
     //background --> 0;
     //m_TimeStampMin --> 1
-    return timeStamp - m_TimeStampMin + 1;
+    return timeStep - m_TimeStampMin + 1;
+  }
+  int TranslateTimePoint(double timePoint)
+  { 
+    return itk::Math::RoundHalfIntegerUp(timePoint * m_TimeStampExp)
+      - m_TimeStampMin + 1;
   }
 
   TScalarType GetDiagonalSpacing(MaskImagePointer mask);
@@ -327,9 +334,9 @@ public:
 
   void InitializeTrajectory(TrajectoryImagePointer &traj);
   void InitializeFrontier(unsigned int transformId);
-  void RewindTrajectory(unsigned int transformId, int stopTime);
+  void RewindTrajectory(unsigned int transformId, double stopTime);
 
-  void ComputeNextTimeTrajectory(unsigned int transformId, int timeStamp,
+  void ComputeNextStepTrajectory(unsigned int transformId, int timeStamp,
     bool &overlap, unsigned int &overlapPointId);
   bool PointExistsInOtherTrajectories(unsigned int transformId, IndexType index);
   void CombineTrajectories();
@@ -367,9 +374,13 @@ private:
   PolyAffineTransform(const Self & other);
   const Self & operator=(const Self &);
 
+  // m_TimeStampExp is the number of time stamps
   int                                       m_TimeStampExp;
+  // m_TimeStampLog is the logarithm of the number of time stamps
   int                                       m_TimeStampLog;
+  // usually m_TimeStampMin starts with zero, but not always
   int                                       m_TimeStampMin;
+  // m_TimeStampMax = m_TimeStampMin + m_TimeStampExp
   int                                       m_TimeStampMax;
 
   MaskImagePointer                          m_BoundaryMask;

@@ -133,6 +133,11 @@ public:
   itkSetObjectMacro(SamplePointSet, PointSetType);
   itkGetObjectMacro(SamplePointSet, PointSetType);
 
+  itkSetMacro(StartTime, double);
+  itkGetMacro(StartTime, double);
+  itkSetMacro(StopTime, double);
+  itkGetMacro(StopTime, double);
+
   /** Set the Mask Image from a Spatial Object.  */
   template< class TSpatialObject > 
   void ComputeFixedMaskImageFromSpatialObject(TSpatialObject *spatialObject, SizeType size);
@@ -196,7 +201,7 @@ private:
   LocalAffineTransform(const Self & other);
   const Self & operator=(const Self &);
 
-  double m_StartTime, m_TimePeriod;
+  double m_StartTime, m_StopTime, m_TimePeriod;
 
   AffineTransformPointer m_VelocityAffineTransform;
   AffineTransformPointer m_PartialVelocityAffineTransform;
