@@ -231,7 +231,7 @@ typename LocalAffineTransform< TScalarType, NDimensions >::AffineTransformPointe
 LocalAffineTransform< TScalarType, NDimensions >
 ::GetPartialTransform(int startTime, int stopTime)
 {
-  AffineTransformPointer partialTransform = AffineTransform::New();
+  AffineTransformPointer partialTransform = AffineTransformType::New();
   int duration = stopTime - startTime;
   if (duration == 0)
     {
