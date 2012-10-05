@@ -720,10 +720,10 @@ PolyAffineTransform< TScalarType, NDimensions >
     trans->ComputeMovingMaskImage();  
     trans->ComputeSamplePointSet(0);
 
-    PicslImageHelper::WriteImage<LocalAffineTransformType::MaskImageType>(
-      trans->GetFixedMaskImage(), "tmpFixedMask.nii", t);
-    PicslImageHelper::WriteImage<LocalAffineTransformType::MaskImageType>(
-      trans->GetMovingMaskImage(), "tmpMovingMask.nii", t);
+    PicslImageHelper::WriteImage<MaskImageType>(
+      trans->GetFixedMaskImage(), "tmpFixedMask.nii", (int)t);
+    PicslImageHelper::WriteImage<MaskImageType>(
+      trans->GetMovingMaskImage(), "tmpMovingMask.nii", (int)t);
     }
 
   //Initialize BoundaryMask and its WeightImage

@@ -29,8 +29,8 @@ namespace itk
 template< class TScalarType, unsigned int NDimensions >
 LocalAffineTransform< TScalarType, NDimensions >::LocalAffineTransform():Superclass(ParametersDimension)
 {
-  this->m_StartTime = 0.0;
-  this->m_StopTime = 0.0;
+  this->m_StartTime = 0;
+  this->m_StopTime = 0;
 }
 
 /** Constructor with default arguments */
@@ -38,8 +38,8 @@ template< class TScalarType, unsigned int NDimensions >
 LocalAffineTransform< TScalarType, NDimensions >::LocalAffineTransform(unsigned int parametersDimension):
   Superclass(parametersDimension)
 {
-  this->m_StartTime = 0.0;
-  this->m_StopTime = 0.0;
+  this->m_StartTime = 0;
+  this->m_StopTime = 0;
 }
 
 /** Constructor with explicit arguments */
@@ -48,8 +48,8 @@ LocalAffineTransform< TScalarType, NDimensions >::LocalAffineTransform(const Mat
                                                              const OutputVectorType & offset):
   Superclass(matrix, offset)
 {
-  this->m_StartTime = 0.0;
-  this->m_StopTime = 0.0;
+  this->m_StartTime = 0;
+  this->m_StopTime = 0;
 }
 
 /**  Destructor */
@@ -277,11 +277,11 @@ LocalAffineTransform< TScalarType, NDimensions >
 
   result->SetCenter(transform->GetCenter());
 
-  AffineTransformType::MatrixType newMatrix = transform->GetMatrix();
+  typename AffineTransformType::MatrixType newMatrix = transform->GetMatrix();
   newMatrix *= factor;
   result->SetMatrix(newMatrix);
   
-  AffineTransformType::OutputVectorType newOffset = transform->GetOffset();
+  typename AffineTransformType::OutputVectorType newOffset = transform->GetOffset();
   newOffset *= factor;
   result->SetOffset(newOffset);
 
