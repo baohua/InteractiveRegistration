@@ -405,8 +405,8 @@ private:
   int                                       m_PadTrajectory;
 
   //for exponential decay rates
-  double                                    m_SquaredSigmaBoundary;
-  double                                    m_SquaredSigmaTrajectory;
+  double                                    m_DecayRateOfBoundary;
+  double                                    m_DecayRateOfTrajectory;
 
 }; //class PolyAffineTransform
 }  // namespace itk

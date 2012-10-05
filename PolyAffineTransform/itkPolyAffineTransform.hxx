@@ -36,11 +36,11 @@ PolyAffineTransform< TScalarType, NDimensions >
 {
   this->SetTimeStampLog(8); //by default 2^8 time stamps
 
-  this->m_PadBoundary = 4;
+  this->m_PadBoundary = 8;
   this->m_PadTrajectory = 2;
 
-  this->m_SquaredSigmaBoundary = 1*1;
-  this->m_SquaredSigmaTrajectory = 3*3;
+  this->m_DecayRateOfBoundary = 1*1;
+  this->m_DecayRateOfTrajectory = 3*3;
 }
 
 // Destructor
@@ -840,7 +840,8 @@ PolyAffineTransform< TScalarType, NDimensions >
     LocalAffineTransformPointer localAffine = this->m_LocalAffineTransformVector[t];
     DisplacementVectorType velocity = localAffine->GetPartialVelocityAtPoint(point);
 
-    weight = vcl_exp(- (distances[t]*distances[t]-distMin*distMin) / this->m_SquaredSigmaTrajectory);
+    //weight = vcl_exp(- (distances[t]*distances[t]-distMin*distMin) / this->m_DecayRateOfTrajectory);
+    weight = vcl_exp(- (distances[t]-distMin) / this->m_DecayRateOfTrajectory);
     weightSum += weight;
     velocitySum += velocity * weight;
     }
@@ -854,9 +855,11 @@ PolyAffineTransform< TScalarType, NDimensions >
     distanceToImageBoundary = 0;
     }
   double weightCombinedTraj = vcl_exp(
-    - distanceToCombinedTraj*distanceToCombinedTraj / this->m_SquaredSigmaTrajectory);
+    //- distanceToCombinedTraj*distanceToCombinedTraj / this->m_DecayRateOfTrajectory);
+    - distanceToCombinedTraj / this->m_DecayRateOfTrajectory);
   double weightBoundary = 1 - vcl_exp(
-    - distanceToImageBoundary*distanceToImageBoundary / this->m_SquaredSigmaBoundary);
+    //- distanceToImageBoundary*distanceToImageBoundary / this->m_DecayRateOfBoundary);
+    - distanceToImageBoundary / this->m_DecayRateOfBoundary);
 
   velocitySum *= (1.0 / weightSum * weightCombinedTraj * weightBoundary);
 }

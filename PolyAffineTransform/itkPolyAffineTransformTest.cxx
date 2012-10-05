@@ -59,8 +59,8 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   typedef  itk::Matrix<double, Dimension, Dimension> MatrixType;
   typedef  itk::Vector<double, Dimension> VectorType;
   VectorType affineOffset1, affineOffset2;
-  double translation1[] = {30, 30, 30};
-  double translation2[] = { 0, 30,  0};
+  double translation1[] = {50, 0, 30};
+  double translation2[] = {0, 50, 30};
   for (unsigned int d=0; d<Dimension; d++)
     { 
     affineOffset1[d] = translation1[d];
@@ -88,8 +88,12 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
 
   BoxType::TransformType::OffsetType boxOffset1;
   BoxType::TransformType::OffsetType boxOffset2;
-  double offset1[] = {50.0, 10.0, 10.0};
-  double offset2[] = {10.0, 50.0, 50.0};
+  //not crossing below
+  //double offset1[] = {50.0, 10.0, 50.0};
+  //double offset2[] = {10.0, 50.0, 50.0};
+  //crossing below
+  double offset1[] = {10.0, 10.0, 50.0};
+  double offset2[] = {50.0, 10.0, 50.0};
   for (unsigned int d=0; d<Dimension; d++)
     {
     boxOffset1[d] = offset1[d];
@@ -101,13 +105,13 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   box2->ComputeObjectToWorldTransform();
 
   MaskImageType::SizeType size;
-  size.Fill(128);
+  size.Fill(150);
   localTransform1->ComputeFixedMaskImageFromSpatialObject<SceneType>(scene1, size);
   localTransform2->ComputeFixedMaskImageFromSpatialObject<SceneType>(scene2, size);
 
   polyTransform->AddLocalAffineTransform(localTransform1);
   polyTransform->AddLocalAffineTransform(localTransform2);
-  polyTransform->SetTimeStampLog(2);
+  polyTransform->SetTimeStampLog(8);
 
   DisplacementFieldType::Pointer displacementField = polyTransform->GetDisplacementField();
 
