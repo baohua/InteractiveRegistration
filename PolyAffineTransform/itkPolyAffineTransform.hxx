@@ -558,6 +558,8 @@ void
 PolyAffineTransform< TScalarType, NDimensions >
 ::RewindTrajectory(unsigned int transformId, int stopTime)
 {
+  this->m_LocalAffineTransformVector[transformId]->SetStopTime(stopTime);
+
   TrajectoryImagePointer traj = this->m_TrajectoryImageVector[transformId];
   int stopValue = this->TimeStampToImageValue(stopTime);
 
@@ -581,9 +583,10 @@ template< class TScalarType,
           unsigned int NDimensions >
 void
 PolyAffineTransform< TScalarType, NDimensions >
-::ComputeNextStepTrajectory(unsigned int transformId,
-                            bool &overlap, unsigned int &overlapPointId)
+::ComputeNextStepTrajectory(unsigned int transformId)
 {
+  bool overlap = false;
+  unsigned int overlapPointId = 0;
   LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[transformId];
 
   int timeStamp = trans->GetStopTime();
@@ -604,7 +607,6 @@ PolyAffineTransform< TScalarType, NDimensions >
   PointSetPointer samples = trans->GetSamplePointSet();
   unsigned int pointId = 0;
 
-  overlap = false;
   for (int f=0; f<samples->GetNumberOfPoints(); f++)
     {
 		PointType z, x = samples->GetPoint(f);
@@ -629,6 +631,9 @@ PolyAffineTransform< TScalarType, NDimensions >
         }
       } //if insideImage
     } //end samples
+
+  trans->SetOverlapped(overlap);
+  trans->SetOverlapPointId(overlapPointId);
 }
 
 template< class TScalarType,
@@ -889,39 +894,47 @@ void
 PolyAffineTransform< TScalarType, NDimensions >
 ::ComputeVelocityFieldBeforeOverlap()
 {
-  bool overlap = false;
-  unsigned int overlapPointId, overlapTransformId;
-
-  while (!overlap && this->GetMinStopTime() < this->m_TimeStampMax)
+  for (unsigned int t = 0; t < this->GetNumberOfLocalAffineTransforms(); t++)
     {
-    for (unsigned int t = 0; !overlap && t < this->GetNumberOfLocalAffineTransforms(); t++)
+    this->m_LocalAffineTransformVector[t]->SetOverlapped(false);
+    }
+
+  while (this->GetMinStopTime() < this->m_TimeStampMax)
+    {
+    bool moved = false;
+    for (unsigned int t = 0; t < this->GetNumberOfLocalAffineTransforms(); t++)
       {
-      this->ComputeNextStepTrajectory(t, overlap, overlapPointId);
-      if (overlap)
+      LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[t];
+      if (!trans->GetOverlapped() && trans->GetStopTime() < this->m_TimeStampMax)
         {
-        overlapTransformId = t;
+        this->ComputeNextStepTrajectory(t);
+        moved = true;
         }
+      }
+    if (!moved)
+      {
+      break;
       }
     }
 
   // save traj for debug
   for (unsigned int t = 0; t < this->GetNumberOfLocalAffineTransforms(); t++)
     {
+    LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[t];
+
     PicslImageHelper::WriteImage<TrajectoryImageType>
       (this->m_TrajectoryImageVector[t], "tmpTraj.nii", 
-        t*10000 + this->m_LocalAffineTransformVector[t]->GetStopTime());
-    }
+        t*10000 + trans->GetStopTime());
 
-  if (overlap) //rewind trajectory
-    {
-    LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[overlapTransformId];
-    int rewindTime = (int)(0.3*trans->GetStartTime() + 0.7*trans->GetStopTime()); //any better solution?
-    this->RewindTrajectory(overlapTransformId, rewindTime); //rewind trajectory
-    trans->SetStopTime(rewindTime);
+    if (trans->GetOverlapped()) //rewind trajectory
+      {
+      int rewindTime = (int)(0.3*trans->GetStartTime() + 0.7*trans->GetStopTime()); //any better solution?
+      this->RewindTrajectory(t, rewindTime); //rewind trajectory
 
-    PicslImageHelper::WriteImage<TrajectoryImageType>
-      (this->m_TrajectoryImageVector[overlapTransformId], "tmpTrajRewind.nii", 
-      overlapTransformId*10000+rewindTime);
+      PicslImageHelper::WriteImage<TrajectoryImageType>
+        (this->m_TrajectoryImageVector[t], "tmpTrajRewind.nii", 
+        t*10000+rewindTime);
+      }
     }
 
   for (unsigned int t = 0; t < this->GetNumberOfLocalAffineTransforms(); t++)

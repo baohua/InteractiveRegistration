@@ -132,10 +132,18 @@ public:
 
   itkSetMacro(StartTime, int);
   itkGetMacro(StartTime, int);
+
   itkSetMacro(StopTime, int);
   itkGetMacro(StopTime, int);
+
   itkSetMacro(TimeStampMax, int);
   itkGetMacro(TimeStampMax, int);
+
+  itkSetMacro(Overlapped, bool);
+  itkGetMacro(Overlapped, bool);
+
+  itkSetMacro(OverlapPointId, unsigned int);
+  itkGetMacro(OverlapPointId, unsigned int);
 
   /** Set the Mask Image from a Spatial Object.  */
   template< class TSpatialObject > 
@@ -203,6 +211,9 @@ private:
   const Self & operator=(const Self &);
 
   int m_StartTime, m_StopTime, m_TimeStampMax;
+
+  bool m_Overlapped;
+  unsigned int m_OverlapPointId;
 
   vnl_matrix<TScalarType> m_VelocityMatrix;
   vnl_matrix<TScalarType> m_PartialVelocityMatrix;

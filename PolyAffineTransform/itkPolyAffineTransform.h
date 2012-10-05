@@ -339,8 +339,7 @@ public:
   void InitializeTrajectory(TrajectoryImagePointer &traj);
   void RewindTrajectory(unsigned int transformId, int stopTime);
 
-  void ComputeNextStepTrajectory(unsigned int transformId,
-    bool &overlap, unsigned int &overlapPointId);
+  void ComputeNextStepTrajectory(unsigned int transformId);
   bool PointExistsInOtherTrajectories(unsigned int transformId, IndexType index);
   void CombineTrajectories();
 

@@ -31,6 +31,7 @@ LocalAffineTransform< TScalarType, NDimensions >::LocalAffineTransform():Supercl
 {
   this->m_StartTime = 0;
   this->m_StopTime = 0;
+  this->m_Overlapped = false;
 }
 
 /** Constructor with default arguments */
@@ -40,6 +41,7 @@ LocalAffineTransform< TScalarType, NDimensions >::LocalAffineTransform(unsigned 
 {
   this->m_StartTime = 0;
   this->m_StopTime = 0;
+  this->m_Overlapped = false;
 }
 
 /** Constructor with explicit arguments */
@@ -50,6 +52,7 @@ LocalAffineTransform< TScalarType, NDimensions >::LocalAffineTransform(const Mat
 {
   this->m_StartTime = 0;
   this->m_StopTime = 0;
+  this->m_Overlapped = false;
 }
 
 /**  Destructor */
