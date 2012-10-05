@@ -147,6 +147,10 @@ public:
   typedef typename LocalAffineTransformType::ParametersType    LocalAffineParametersType;
   typedef typename LocalAffineTransformType::PointSetType      PointSetType;
   typedef typename LocalAffineTransformType::PointSetPointer   PointSetPointer;
+  typedef typename LocalAffineTransformType::AffineTransformType 
+                                                               AffineTransformType;
+  typedef typename LocalAffineTransformType::AffineTransformPointer
+                                                               AffineTransformPointer;
 
   typedef itk::DisplacementFieldTransform<TScalarType, NDimensions> 
                                                                DisplacementFieldTransformType;
@@ -154,8 +158,8 @@ public:
 
   typedef typename DisplacementFieldTransformType::DisplacementFieldType
                                                                DisplacementFieldType;
-  typedef typename DisplacementFieldType::Pointer
-                                                               DisplacementFieldPointer;
+  typedef typename DisplacementFieldType::Pointer              DisplacementFieldPointer;    
+  typedef typename DisplacementFieldType::PixelType            DisplacementVectorType;
 
   typedef typename LocalAffineTransformType::MaskImageType     MaskImageType;
   typedef typename MaskImageType::Pointer                      MaskImagePointer;
@@ -190,6 +194,10 @@ public:
   LocalAffineTransformVectorType & GetLocalAffineTransformVector()
     {
     return m_LocalAffineTransformVector;
+    }
+  unsigned int GetNumberOfLocalAffineTransforms()
+    {
+    return m_LocalAffineTransformVector.size();
     }
 
   /** Set the transformation to an Identity
@@ -304,39 +312,34 @@ public:
   void SetTimeStampLog(unsigned int timeStampLog)
   {
     this->m_TimeStampLog = timeStampLog;
-    //m_TimeStampExp is the number of time stamps
-    this->m_TimeStampExp = 1 << timeStampLog;
 
-    //usually m_TimeStampMin starts with zero, but not always
-    this->m_TimeStampMin = 0;
-    this->m_TimeStampMax = m_TimeStampMin + m_TimeStampExp;
+    //m_TimeStampMax is the number of time stamps
+    this->m_TimeStampMax = 1 << timeStampLog;
   }
 
-  /** Translate the time stamp to a nonegative number stored in a trajectory.
-   *  The trajectory background uses 0, and m_TimeStampMin is mapped to 1.
+  /** Translate the time stamp to a nonegative number to be stored
+   *  in a trajectory image. The trajectory background uses 0.
    */
-  int TranslateTimeStamp(int timeStep)
+  int TimeStampToImageValue(int timeStep)
   { 
-    //background --> 0;
-    //m_TimeStampMin --> 1
-    return timeStep - m_TimeStampMin + 1;
+    //background is 0
+    return timeStep + 1;
   }
-  int TranslateTimePoint(double timePoint)
+  int ImageValueToTimeStamp(int imageValue)
   { 
-    return itk::Math::RoundHalfIntegerUp(timePoint * m_TimeStampExp)
-      - m_TimeStampMin + 1;
+    return imageValue - 1;
   }
 
   TScalarType GetDiagonalSpacing(MaskImagePointer mask);
 
   bool InitializeBuffers();
   void InitializeBoundaryMask();
+  int GetMinStopTime();
 
   void InitializeTrajectory(TrajectoryImagePointer &traj);
-  void InitializeFrontier(unsigned int transformId);
-  void RewindTrajectory(unsigned int transformId, double stopTime);
+  void RewindTrajectory(unsigned int transformId, int stopTime);
 
-  void ComputeNextStepTrajectory(unsigned int transformId, int timeStamp,
+  void ComputeNextStepTrajectory(unsigned int transformId,
     bool &overlap, unsigned int &overlapPointId);
   bool PointExistsInOtherTrajectories(unsigned int transformId, IndexType index);
   void CombineTrajectories();
@@ -344,11 +347,14 @@ public:
   WeightImagePointer ComputeBoundaryWeightImage();
   WeightImagePointer ComputeTrajectoryWeightImage(TrajectoryImagePointer traj);
 
-  void ComputeWeightedSumOfVelocityFields(int startTime, int stopTime);
+  void ComputeWeightedSumOfVelocityFields();
+  void ComputeWeightedSumOfVelocitiesAtPoint(DisplacementVectorType &velocitySum, const PointType &point,
+    const double distances[], double distanceToCombinedTraj, double distanceToImageBoundary);
+
   DisplacementFieldPointer ComputeExponentialDisplacementField(
     const DisplacementFieldPointer &velocityField);
 
-  void ComputeVelocityFieldBeforeOverlap(int startTime, int &stopTime);
+  void ComputeVelocityFieldBeforeOverlap();
 
   void ComputeDisplacementField();
   virtual DisplacementFieldType* GetDisplacementField();
@@ -374,13 +380,9 @@ private:
   PolyAffineTransform(const Self & other);
   const Self & operator=(const Self &);
 
-  // m_TimeStampExp is the number of time stamps
-  int                                       m_TimeStampExp;
   // m_TimeStampLog is the logarithm of the number of time stamps
   int                                       m_TimeStampLog;
-  // usually m_TimeStampMin starts with zero, but not always
-  int                                       m_TimeStampMin;
-  // m_TimeStampMax = m_TimeStampMin + m_TimeStampExp
+  // m_TimeStampMax is exp(m_TimeStampLog)
   int                                       m_TimeStampMax;
 
   MaskImagePointer                          m_BoundaryMask;
@@ -392,7 +394,6 @@ private:
 
   LocalAffineTransformVectorType            m_LocalAffineTransformVector;  
   TrajectoryImageVectorType                 m_TrajectoryImageVector;
-  PointSetVectorType                        m_FrontierVector;
   
   TrajectoryImagePointer                    m_CombinedTrajectoryImage;
   WeightImagePointer                        m_CombinedTrajectoryWeightImage;

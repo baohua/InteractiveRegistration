@@ -535,35 +535,6 @@ PolyAffineTransform< TScalarType, NDimensions >
     }
 }
 
-/**
- * Initialize the frontier during trajectory computation. The frontier
- * contains the points that are in the trajectory, but not have been
- * processed for its move at the next time stamp.
- */
-template< class TScalarType,
-          unsigned int NDimensions >
-void
-PolyAffineTransform< TScalarType, NDimensions >
-::InitializeFrontier(unsigned int transformId)
-{
-  PointSetPointer pointSet = m_LocalAffineTransformVector[transformId]->GetSamplePointSet();
-  SizeValueType num = pointSet->GetNumberOfPoints();
-
-  PointSetPointer frontier = PointSetType::New(); 
-
-  typename PointSetType::PointsContainer *container = pointSet->GetPoints();
-  typename PointSetType::PointsContainer::ConstIterator it = container->Begin();
-
-  unsigned int pointId = 0;
-  while (it != container->End())
-    {
-    frontier->SetPoint(pointId++, it->Value());
-    it++;
-    }
-
-  m_FrontierVector[transformId] = frontier;
-}
-
 template< class TScalarType,
           unsigned int NDimensions >
 void
@@ -585,17 +556,17 @@ template< class TScalarType,
           unsigned int NDimensions >
 void
 PolyAffineTransform< TScalarType, NDimensions >
-::RewindTrajectory(unsigned int transformId, double stopTime)
+::RewindTrajectory(unsigned int transformId, int stopTime)
 {
   TrajectoryImagePointer traj = this->m_TrajectoryImageVector[transformId];
-  int stopTimeStamp = this->TranslateTimePoint(stopTime);
+  int stopValue = this->TimeStampToImageValue(stopTime);
 
   typedef ImageRegionIteratorWithIndex< TrajectoryImageType > IteratorType;
   IteratorType it( traj, traj->GetLargestPossibleRegion() );
 
   for( it.GoToBegin(); !it.IsAtEnd(); ++it )
     {
-    if (it.Get() > stopTimeStamp)
+    if (it.Get() > stopValue)
       {
       it.Set(0); //set to background
       }
@@ -615,51 +586,49 @@ PolyAffineTransform< TScalarType, NDimensions >
 {
   LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[transformId];
 
+  int timeStamp = trans->GetStopTime();
+  if (timeStamp >= trans->GetTimeStampMax())
+    {
+    return;
+    }
+
+  timeStamp++;
+  trans->SetStopTime(timeStamp);
+  if (timeStamp == 200)
+    bool debug=true;
+
   typedef typename LocalAffineTransformType::AffineTransformPointer AffineTransformPointer;
-  AffineTransformPointer velocity = trans->GetVelocityAffineTransform();
+  AffineTransformPointer partialTrans = trans->GetPartialTransform(0, timeStamp);
 
   TrajectoryImagePointer traj = this->m_TrajectoryImageVector[transformId];
-
-  PointSetPointer frontierNow = this->m_FrontierVector[transformId];
-  PointSetPointer frontierNext = PointSetType::New();
+  PointSetPointer samples = trans->GetSamplePointSet();
   unsigned int pointId = 0;
 
   overlap = false;
-  for (int f=0; f<frontierNow->GetNumberOfPoints(); f++)
+  for (int f=0; f<samples->GetNumberOfPoints(); f++)
     {
-		PointType y = frontierNow->GetPoint(f);
-    PointType z, step;
-
-		//compute z=(1+V/N)*y
-    step = velocity->TransformPoint( y );
-    for (unsigned int d=0; d<NDimensions; d++)
-      {
-      z[d] = y[d] + step[d] / this->m_TimeStampExp;
-      }
-
-    //add z into the next frontier no matter if it is inside the image
-    frontierNext->SetPoint(pointId++, z);
-
+		PointType z, x = samples->GetPoint(f);
     IndexType index;
-    bool insideImage = traj->TransformPhysicalPointToIndex(y, index);
+
+		//compute z = exp(t*log(T) * x
+    z = partialTrans->TransformPoint( x );
+    bool insideImage = traj->TransformPhysicalPointToIndex(z, index);
+
     if (insideImage)
       {
-      if (traj->GetPixel(index) == 0)
+      if (traj->GetPixel(index) == 0) //not in trajectory yet
         {
-        traj->SetPixel(index, this->TranslateTimeStamp(timeStamp));
+        traj->SetPixel(index, this->TimeStampToImageValue(timeStamp));
 
         //overlap detection
         overlap = PointExistsInOtherTrajectories(transformId, index);
         if (overlap)
           {
-            overlapPointId = f;
+            overlapPointId = f; //not used now, may be used later
           }
         }
-      }
-    } //end of for loop with f in frontierNow
-  
-  //update frontier for future trajectory computation
-  this->m_FrontierVector[transformId] = frontierNext;
+      } //if insideImage
+    } //end samples
 }
 
 template< class TScalarType,
@@ -671,7 +640,7 @@ PolyAffineTransform< TScalarType, NDimensions >
   TrajectoryImagePointer trajOther;
   bool exist = false;
   
-  for (unsigned int t=0; t<this->m_LocalAffineTransformVector.size(); t++)
+  for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
     {
     if (t == transformId)
       {
@@ -738,11 +707,23 @@ bool
 PolyAffineTransform< TScalarType, NDimensions >
 ::InitializeBuffers()
 {
-  if (this->m_LocalAffineTransformVector.size() == 0)
+  if (this->GetNumberOfLocalAffineTransforms() == 0)
     {
     itkWarningMacro(
       << "The number of local affine transforms is zero." );
     return false;
+    }
+  
+  for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
+    {
+    LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[t];
+    trans->ComputeMovingMaskImage();  
+    trans->ComputeSamplePointSet(0);
+
+    itk::PicslImageHelper::WriteImage<LocalAffineTransformType::MaskImageType>(
+      trans->GetFixedMaskImage(), "tmpFixedMask.nii", t);
+    itk::PicslImageHelper::WriteImage<LocalAffineTransformType::MaskImageType>(
+      trans->GetMovingMaskImage(), "tmpMovingMask.nii", t);
     }
 
   //Initialize BoundaryMask and its WeightImage
@@ -755,10 +736,9 @@ PolyAffineTransform< TScalarType, NDimensions >
     (this->m_BoundaryWeightImage, "tmpBoundWeight.nii");
 
   //Initialize trajectory vector, its elments, and its frontier point sets
-  unsigned int transformNumber = this->m_LocalAffineTransformVector.size();
+  unsigned int transformNumber = this->GetNumberOfLocalAffineTransforms();
   this->m_TrajectoryWeightImageVector.resize(transformNumber);
   this->m_TrajectoryImageVector.resize(transformNumber);
-  this->m_FrontierVector.resize(transformNumber);
 
   //Initialize the overall displacement field
   this->m_DisplacementField = DisplacementFieldType::New();
@@ -779,23 +759,21 @@ template< class TScalarType,
           unsigned int NDimensions >
 void
 PolyAffineTransform< TScalarType, NDimensions >
-::ComputeWeightedSumOfVelocityFields(int startStep, int stopStep)
+::ComputeWeightedSumOfVelocityFields()
 {
-  typedef typename LocalAffineTransformType::AffineTransformType 
-    AffineTransformType;
-  typedef typename LocalAffineTransformType::AffineTransformPointer
-    AffineTransformPointer;
-
   IndexType index;
-  PointType point, velocity;
-  TScalarType weight, weightSum;
-  typename DisplacementFieldType::PixelType velocitySum;
+  PointType point;
+  DisplacementVectorType velocitySum;
 
-  unsigned int numTrans = this->m_LocalAffineTransformVector.size();
+  unsigned int numTrans = this->GetNumberOfLocalAffineTransforms();
   int ownerTraj;
-  double timePeriod = (double)(stopStep - startStep) / this->m_TimeStampExp;
-  double distMin, *distances = new double[numTrans];
+  double *distances = new double[numTrans];
   double distCombinedTraj, distBoundary;
+
+  for (unsigned int t=0; t<numTrans; t++)
+    {
+    this->m_LocalAffineTransformVector[t]->UpdatePartialVelocityMatrix();
+    }
 
   typedef ImageRegionIteratorWithIndex< DisplacementFieldType > IteratorType;
   IteratorType it( this->m_VelocityField, this->m_VelocityField->GetLargestPossibleRegion() );
@@ -806,8 +784,7 @@ PolyAffineTransform< TScalarType, NDimensions >
     this->m_VelocityField->TransformIndexToPhysicalPoint( index, point );
 
     ownerTraj = -1;
-    distMin = NumericTraits<double>::max();
-    for (int t=0; t<numTrans; t++)
+    for (unsigned int t=0; t<numTrans; t++)
       {
       distances[t] = this->m_TrajectoryWeightImageVector[t]->GetPixel(index);	
       if (distances[t] <= 0)
@@ -815,58 +792,19 @@ PolyAffineTransform< TScalarType, NDimensions >
         distances[t] = 0;
         ownerTraj = t;
         }
-      if (distMin > distances[t])
-        {
-        distMin = distances[t];
-        }
-      }
-    for (int t=0; t<numTrans; t++)
-      {
-      distances[t] -= distMin; 
       }
 
     if (ownerTraj >= 0) //the point is inside a trajectory ownerTraj
       {
       LocalAffineTransformPointer localAffine = this->m_LocalAffineTransformVector[ownerTraj];
-      AffineTransformPointer localVelocity =
-        localAffine->GetPartialVelocityAffineTransform(timePeriod);
-      velocity = localVelocity->TransformPoint(point);
-      velocitySum = velocity;
+      velocitySum = localAffine->GetPartialVelocityAtPoint(point);
       }
     else //the point is outside all trajectories
       {
-      velocitySum.Fill(0.0);
-      weightSum = 0.0;
-      for (int t=0; t<numTrans; t++)
-        {
-        LocalAffineTransformPointer localAffine = this->m_LocalAffineTransformVector[t];
-        AffineTransformPointer localVelocity =
-          localAffine->GetPartialVelocityAffineTransform(timePeriod);
-        velocity = localVelocity->TransformPoint(point);
-
-        weight = vcl_exp(-distances[t]*distances[t] / this->m_SquaredSigmaTrajectory);
-        weightSum += weight;
-        for (unsigned int j=0; j<NDimensions; j++)
-          {
-          velocitySum[j] += weight * velocity[j];
-          }
-        }
-      velocitySum /= weightSum;
-
       distCombinedTraj = this->m_CombinedTrajectoryWeightImage->GetPixel(index); 
       distBoundary = this->m_BoundaryWeightImage->GetPixel(index);
-      if (distCombinedTraj <= 0)
-        {
-        distCombinedTraj = 0;
-        }
-      if (distBoundary <= 0)
-        {
-        distBoundary = 0;
-        }
-      double weightCombinedTraj = vcl_exp(-distCombinedTraj*distCombinedTraj / this->m_SquaredSigmaTrajectory);
-      double weightBoundary = 1 - vcl_exp(-distBoundary*distBoundary / this->m_SquaredSigmaBoundary);
-
-      velocitySum *= (weightCombinedTraj * weightBoundary);
+      this->ComputeWeightedSumOfVelocitiesAtPoint(velocitySum, point,
+        distances, distCombinedTraj, distBoundary);
       }
 
     it.Set(velocitySum);
@@ -877,13 +815,61 @@ PolyAffineTransform< TScalarType, NDimensions >
 
 template< class TScalarType,
           unsigned int NDimensions >
-double
+void
+PolyAffineTransform< TScalarType, NDimensions >
+::ComputeWeightedSumOfVelocitiesAtPoint(DisplacementVectorType &velocitySum, const PointType &point,
+  const double distances[], double distanceToCombinedTraj, double distanceToImageBoundary)
+{
+  unsigned int numTrans = this->GetNumberOfLocalAffineTransforms();
+
+  //eliminator the common factor to avoid a very small denominator
+  double distMin = NumericTraits<double>::max();
+  for (unsigned int t=0; t<numTrans; t++)
+    {
+    if (distMin > distances[t])
+      {
+      distMin = distances[t];
+      }
+    }
+
+  double weightSum = 0.0, weight;
+  velocitySum.Fill(0.0);
+  
+  for (unsigned int t=0; t<numTrans; t++)
+    {
+    LocalAffineTransformPointer localAffine = this->m_LocalAffineTransformVector[t];
+    DisplacementVectorType velocity = localAffine->GetPartialVelocityAtPoint(point);
+
+    weight = vcl_exp(- (distances[t]*distances[t]-distMin*distMin) / this->m_SquaredSigmaTrajectory);
+    weightSum += weight;
+    velocitySum += velocity * weight;
+    }
+
+  if (distanceToCombinedTraj < 0)
+    {
+    distanceToCombinedTraj = 0;
+    }
+  if (distanceToImageBoundary < 0)
+    {
+    distanceToImageBoundary = 0;
+    }
+  double weightCombinedTraj = vcl_exp(
+    - distanceToCombinedTraj*distanceToCombinedTraj / this->m_SquaredSigmaTrajectory);
+  double weightBoundary = 1 - vcl_exp(
+    - distanceToImageBoundary*distanceToImageBoundary / this->m_SquaredSigmaBoundary);
+
+  velocitySum *= (1.0 / weightSum * weightCombinedTraj * weightBoundary);
+}
+
+template< class TScalarType,
+          unsigned int NDimensions >
+int
 PolyAffineTransform< TScalarType, NDimensions >
 ::GetMinStopTime()
 {
-  double minStopTime = NumericTraits<double>::max();
-  double stopTime;
-  for (unsigned int t = 0; t < this->m_LocalAffineTransformVector.size(); t++)
+  int minStopTime = NumericTraits<int>::max();
+  int stopTime;
+  for (unsigned int t = 0; t < this->GetNumberOfLocalAffineTransforms(); t++)
     {
     stopTime = this->m_LocalAffineTransformVector[t]->GetStopTime();
     if (minStopTime > stopTime)
@@ -901,68 +887,59 @@ PolyAffineTransform< TScalarType, NDimensions >
 ::ComputeVelocityFieldBeforeOverlap()
 {
   bool overlap = false;
-  int overlapTime;
   unsigned int overlapPointId, overlapTransformId;
 
-  while (this->GetMinStopTime() <= 1.0)
+  while (!overlap && this->GetMinStopTime() < this->m_TimeStampMax)
     {
-    for (unsigned int t = 0; !overlap && t < this->m_LocalAffineTransformVector.size(); t++)
+    for (unsigned int t = 0; !overlap && t < this->GetNumberOfLocalAffineTransforms(); t++)
       {
       this->ComputeNextStepTrajectory(t, overlap, overlapPointId);
       if (overlap)
         {
-        overlapTime = ts;
         overlapTransformId = t;
         }
       }
     }
 
-  if (!overlap)
-    {
-    overlapTime = this->m_TimeStampMax + 1; //for debug WriteImage below
-    stopStep = this->m_TimeStampMax; //looped until the end
-    }
-
-  for (unsigned int t = 0; t < this->m_LocalAffineTransformVector.size(); t++)
+  // save traj for debug
+  for (unsigned int t = 0; t < this->GetNumberOfLocalAffineTransforms(); t++)
     {
     PicslImageHelper::WriteImage<TrajectoryImageType>
-      (this->m_TrajectoryImageVector[t], "tmpTraj.nii", t*10000+overlapTime);
+      (this->m_TrajectoryImageVector[t], "tmpTraj.nii", 
+        t*10000 + this->m_LocalAffineTransformVector[t]->GetStopTime());
     }
 
   if (overlap) //rewind trajectory
     {
-    stopStep = overlapTime - 10; //any better solution?
-    if (stopStep < this->m_TimeStampMin)
-      {
-      stopStep = this->m_TimeStampMin;
-      }
-    for (unsigned int t = 0; t < this->m_LocalAffineTransformVector.size(); t++)
-      {
-      this->m_LocalAffineTransformVector[t]->SetStopTime(stopTime);
-      this->RewindTrajectory(t, stopTime); //rewind trajectory to stopStep
-      PicslImageHelper::WriteImage<TrajectoryImageType>
-        (this->m_TrajectoryImageVector[t], "tmpTrajRewind.nii", t*10000+stopStep);
-      }
+    LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[overlapTransformId];
+    int rewindTime = (trans->GetStartTime() + trans->GetStopTime()) / 2; //any better solution?
+    this->RewindTrajectory(overlapTransformId, rewindTime); //rewind trajectory
+    trans->SetStopTime(rewindTime);
+
+    PicslImageHelper::WriteImage<TrajectoryImageType>
+      (this->m_TrajectoryImageVector[overlapTransformId], "tmpTrajRewind.nii", 
+      overlapTransformId*10000+rewindTime);
     }
 
-  for (unsigned int t = 0; t < this->m_LocalAffineTransformVector.size(); t++)
+  for (unsigned int t = 0; t < this->GetNumberOfLocalAffineTransforms(); t++)
     {
     this->m_TrajectoryWeightImageVector[t] = this->ComputeTrajectoryWeightImage(
       this->m_TrajectoryImageVector[t]);
     PicslImageHelper::WriteImage<WeightImageType>
-      (this->m_TrajectoryWeightImageVector[t], "tmpTrajWeight.nii", t*10000+stopStep);
+      (this->m_TrajectoryWeightImageVector[t], "tmpTrajWeight.nii", 
+      t*10000 + this->m_LocalAffineTransformVector[t]->GetStopTime());
     }
 
   this->CombineTrajectories();
   this->m_CombinedTrajectoryWeightImage = this->ComputeTrajectoryWeightImage(
       this->m_CombinedTrajectoryImage);
-      
-  PicslImageHelper::WriteImage<TrajectoryImageType>
-        (this->m_CombinedTrajectoryImage, "tmpTrajComb.nii", stopStep);  
-  PicslImageHelper::WriteImage<WeightImageType>
-        (this->m_CombinedTrajectoryWeightImage, "tmpTrajCombWeight.nii", stopStep);
 
-  this->ComputeWeightedSumOfVelocityFields(startStep, stopStep);
+  PicslImageHelper::WriteImage<TrajectoryImageType>
+        (this->m_CombinedTrajectoryImage, "tmpTrajComb.nii", this->GetMinStopTime());  
+  PicslImageHelper::WriteImage<WeightImageType>
+        (this->m_CombinedTrajectoryWeightImage, "tmpTrajCombWeight.nii", this->GetMinStopTime());
+
+  this->ComputeWeightedSumOfVelocityFields();
 }
 
 template< class TScalarType,
@@ -975,7 +952,7 @@ PolyAffineTransform< TScalarType, NDimensions >
   
   typedef ImageRegionIteratorWithIndex< TrajectoryImageType > IteratorType;
 
-  for (unsigned int t=0; t<this->m_LocalAffineTransformVector.size(); t++)
+  for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
     {
     TrajectoryImagePointer traj = this->m_TrajectoryImageVector[t];
     IteratorType it( traj, traj->GetLargestPossibleRegion() );
@@ -1016,40 +993,40 @@ PolyAffineTransform< TScalarType, NDimensions >
   VectorType disp(0.0);
   this->m_DisplacementField->FillBuffer(disp); //identity transform
 
-  int startStep = this->m_TimeStampMin;
-  int stopStep  = this->m_TimeStampMin;
-
-  // minStopTime is the minimum m_StopTime over all local transforms
-  double minStopTime = (double)this->m_TimeStampMin / this->m_TimeStampExp;
-  for (unsigned int t=0; t<this->m_LocalAffineTransformVector.size(); t++)
+  for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
     {
-    this->m_LocalAffineTransformVector[t]->SetStartTime(minStopTime);
-    this->m_LocalAffineTransformVector[t]->SetStopTime(minStopTime);
+    this->m_LocalAffineTransformVector[t]->SetStopTime(0);
+    this->m_LocalAffineTransformVector[t]->SetTimeStampMax(this->m_TimeStampMax);
     }
 
-  while (minStopTime < 1.0)
+  while (this->GetMinStopTime() < this->m_TimeStampMax)
     {
-    for (unsigned int t=0; t<this->m_LocalAffineTransformVector.size(); t++)
+    for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
       {
       LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[t];
-      trans->SetStartTime(trans->GetStopTime());
 
-      this->m_LocalAffineTransformVector[t]->ComputeSamplePointSet();
-      this->InitializeFrontier(t);
+      // The next trajectory always starts at the m_StopTime of the previous trajectory.
+      int DonePreviously = trans->GetStopTime();
+      trans->SetStartTime(DonePreviously);
+
+      // For each local transform, its trajectory is during [ m_StartTime, m_StopTime ].
+      // at the beginning, each trajectory is empty and m_StopTime = m_StartTime - 1.
+      trans->SetStopTime(trans->GetStartTime() - 1);
 
       this->InitializeTrajectory(this->m_TrajectoryImageVector[t]);
       }
 
-    //update local transforms' point sets
-    //update local transforms' matrix and its velocity matrix
+    //Compute the velocity field before overlap. It computes the trajectories,
+    //related weights, and weighted sum of velocities.
     this->ComputeVelocityFieldBeforeOverlap();
-    PicslImageHelper::WriteDisplacementField<DisplacementFieldType>
-      (this->m_VelocityField, "tmpVelocitySum.nii", stopStep);
 
     DisplacementFieldPointer exponentialField =
       this->ComputeExponentialDisplacementField(this->m_VelocityField);
+
     PicslImageHelper::WriteDisplacementField<DisplacementFieldType>
-      (exponentialField, "tmpExponentField.nii", stopStep);
+      (this->m_VelocityField, "tmpVelocitySum.nii", this->GetMinStopTime());
+    PicslImageHelper::WriteDisplacementField<DisplacementFieldType>
+      (exponentialField, "tmpExponentField.nii", this->GetMinStopTime());
  
     typedef itk::ComposeDisplacementFieldsImageFilter<DisplacementFieldType> ComposerType;
     typename ComposerType::Pointer composer = ComposerType::New();

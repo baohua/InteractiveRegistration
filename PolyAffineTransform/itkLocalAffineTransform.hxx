@@ -31,7 +31,6 @@ LocalAffineTransform< TScalarType, NDimensions >::LocalAffineTransform():Supercl
 {
   this->m_StartTime = 0.0;
   this->m_StopTime = 0.0;
-  this->m_TimePeriod = 0.0;
 }
 
 /** Constructor with default arguments */
@@ -41,7 +40,6 @@ LocalAffineTransform< TScalarType, NDimensions >::LocalAffineTransform(unsigned 
 {
   this->m_StartTime = 0.0;
   this->m_StopTime = 0.0;
-  this->m_TimePeriod = 0.0;
 }
 
 /** Constructor with explicit arguments */
@@ -52,7 +50,6 @@ LocalAffineTransform< TScalarType, NDimensions >::LocalAffineTransform(const Mat
 {
   this->m_StartTime = 0.0;
   this->m_StopTime = 0.0;
-  this->m_TimePeriod = 0.0;
 }
 
 /**  Destructor */
@@ -65,34 +62,28 @@ LocalAffineTransform< TScalarType, NDimensions >::
 
 /** Compute the principal logarithm of an affine transform */
 template< class TScalarType, unsigned int NDimensions >
-typename LocalAffineTransform< TScalarType, NDimensions >::AffineTransformPointer
-LocalAffineTransform< TScalarType, NDimensions >::ComputeLogarithmTransform(
+vnl_matrix<TScalarType>
+LocalAffineTransform< TScalarType, NDimensions >::ComputeLogarithmMatrix(
   AffineTransformPointer affineTransform)
 {
-  AffineTransformPointer logAffine = AffineTransformType::New();
-
   vnl_matrix<TScalarType> homoMat(NDimensions+1, NDimensions+1);
   this->GetHomogeneousMatrix(homoMat, affineTransform);
 
   vnl_matrix<TScalarType> logMat = sdtools::GetLogarithm(homoMat);
-  this->SetHomogeneousTransform(logAffine, logMat, affineTransform->GetCenter());
 
-  return logAffine;
+  return logMat;
 }
 
 /** Compute the exponential of an affine transform */
 template< class TScalarType, unsigned int NDimensions >
 typename LocalAffineTransform< TScalarType, NDimensions >::AffineTransformPointer
 LocalAffineTransform< TScalarType, NDimensions >::ComputeExponentialTransform(
-  AffineTransformPointer affineTransform)
+  vnl_matrix<TScalarType> velocity)
 {
   AffineTransformPointer expAffine = AffineTransformType::New();
 
-  vnl_matrix<TScalarType> homoMat(NDimensions+1, NDimensions+1);
-  this->GetHomogeneousMatrix(homoMat, affineTransform);
-
-  vnl_matrix<TScalarType> expMat = sdtools::GetExponential(homoMat);
-  this->SetHomogeneousTransform(expAffine, expMat, affineTransform->GetCenter());
+  vnl_matrix<TScalarType> expMat = sdtools::GetExponential(velocity);
+  this->SetHomogeneousTransform(expAffine, expMat);
 
   return expAffine;
 }
@@ -101,20 +92,22 @@ template< class TScalarType, unsigned int NDimensions >
 void
 LocalAffineTransform< TScalarType, NDimensions >::SetHomogeneousTransform(
   AffineTransformPointer &affineTransform,
-  const vnl_matrix<TScalarType> &homoMatrix, InputPointType center)
+  const vnl_matrix<TScalarType> &homoMatrix)
 {
   MatrixType vmat;
   OutputVectorType voffset;
+  TScalarType scale = homoMatrix[NDimensions][NDimensions];
+
   for (unsigned int i=0; i<NDimensions; i++)
     {
     for (unsigned int j=0; j<NDimensions; j++)
       {
-        vmat[i][j] = homoMatrix[i][j];
+        vmat[i][j] = homoMatrix[i][j] / scale;
       }
-    voffset[i] = homoMatrix[i][NDimensions];
+    voffset[i] = homoMatrix[i][NDimensions] / scale;
     }
 
-  affineTransform->SetCenter(center);
+  affineTransform->SetCenter(this->GetCenter());
   affineTransform->SetMatrix(vmat);
   affineTransform->SetOffset(voffset);
 }
@@ -141,31 +134,43 @@ LocalAffineTransform< TScalarType, NDimensions >::GetHomogeneousMatrix(
 }
 
 template< class TScalarType, unsigned int NDimensions >
-typename LocalAffineTransform< TScalarType, NDimensions >::AffineTransformType*
+vnl_matrix<TScalarType>
 LocalAffineTransform< TScalarType, NDimensions >
-::GetVelocityAffineTransform()
+::GetVelocityMatrix()
 {
-  if (this->m_VelocityAffineTransform.IsNull())
+  if (this->m_VelocityMatrix.empty())
     {
-    this->m_VelocityAffineTransform = this->ComputeLogarithmTransform(this);
+    this->m_VelocityMatrix = this->ComputeLogarithmMatrix(this);
     }
-  return this->m_VelocityAffineTransform.GetPointer();
+  return this->m_VelocityMatrix;
 }
 
 template< class TScalarType, unsigned int NDimensions >
-typename LocalAffineTransform< TScalarType, NDimensions >::AffineTransformType*
+void
 LocalAffineTransform< TScalarType, NDimensions >
-::GetPartialVelocityAffineTransform(double timePeriod)
+::UpdatePartialVelocityMatrix()
 {
-  if (this->m_PartialVelocityAffineTransform.IsNull()
-      || this->m_TimePeriod != timePeriod)
-    {
-    this->m_TimePeriod = timePeriod;
-    this->m_PartialVelocityAffineTransform = this->ScaleMatrixOffset(
-      this->GetVelocityAffineTransform(), timePeriod);
-    }
+  double timePeriod = (double)(m_StopTime - m_StartTime) / m_TimeStampMax;
+  this->m_PartialVelocityMatrix = this->GetVelocityMatrix();
+  this->m_PartialVelocityMatrix *= timePeriod;
+}
 
-  return this->m_PartialVelocityAffineTransform.GetPointer();
+template< class TScalarType, unsigned int NDimensions >
+typename LocalAffineTransform< TScalarType, NDimensions >::OutputVectorType
+LocalAffineTransform< TScalarType, NDimensions >
+::GetPartialVelocityAtPoint(const PointType &point)
+{
+  OutputVectorType velocity;
+  
+  for (unsigned int r=0; r<NDimensions; r++)
+    {
+    velocity[r] = this->m_PartialVelocityMatrix[r][NDimensions];
+    for (unsigned int c=0; c<NDimensions; c++)
+      {
+      velocity[r] += this->m_PartialVelocityMatrix[r][c] * point[c];
+      }
+    }
+  return velocity;
 }
 
 template< class TScalarType, unsigned int NDimensions >
@@ -224,23 +229,22 @@ LocalAffineTransform< TScalarType, NDimensions >
 template< class TScalarType, unsigned int NDimensions >
 typename LocalAffineTransform< TScalarType, NDimensions >::AffineTransformPointer 
 LocalAffineTransform< TScalarType, NDimensions >
-::GetPartialTransform(double factor)
+::GetPartialTransform(int startTime, int stopTime)
 {
   AffineTransformPointer partialTransform = AffineTransform::New();
-  if (factor == 0)
+  int duration = stopTime - startTime;
+  if (duration == 0)
     {
     partialTransform->SetCenter(this->GetCenter());
     partialTransform->SetIdentity();
-    return partialTransform;
     }
-  else if (factor == 1)
+  else if (duration == this->m_TimeStampMax)
     {
     partialTransform->SetCenter(this->GetCenter());
     partialTransform->SetMatrix(this->GetMatrix());
     partialTransform->SetOffset(this->GetOffset());
-    return partialTransform;
     }
-  else if (factor == -1)
+  else if (duration == -this->m_TimeStampMax)
     {
     partialTransform->SetCenter(this->GetCenter());
     bool invertible = this->GetInverse(partialTransform);
@@ -248,13 +252,14 @@ LocalAffineTransform< TScalarType, NDimensions >
       {
       itkWarningMacro("This LocalAffineTransform is not invertible.");
       }
-    return partialTransform;
     }
-
-  AffineTransformPointer partialVelocity = this->ScaleMatrixOffset(
-    this->GetVelocityAffineTransform(), factor);
-
-  partialTransform = this->ComputeExponentialTransform(partialVelocity);
+  else
+    {
+    double factor = (double)duration / this->m_TimeStampMax;
+    vnl_matrix<TScalarType> partialVelocity = this->GetVelocityMatrix();
+    partialVelocity *= factor;
+    partialTransform = this->ComputeExponentialTransform(partialVelocity);
+    }
 
   return partialTransform;
 }
@@ -266,31 +271,21 @@ LocalAffineTransform< TScalarType, NDimensions >
 template< class TScalarType, unsigned int NDimensions >
 typename LocalAffineTransform< TScalarType, NDimensions >::AffineTransformPointer 
 LocalAffineTransform< TScalarType, NDimensions >
-::ScaleMatrixOffset(AffineTransformPointer velocity, double factor)
+::ScaleMatrixOffset(AffineTransformPointer transform, double factor)
 {
-  AffineTransformPointer partialVelocity = AffineTransformType::New();
+  AffineTransformPointer result = AffineTransformType::New();
 
-  partialVelocity->SetCenter(velocity->GetCenter());
+  result->SetCenter(transform->GetCenter());
 
-  AffineTransformType::MatrixType newMatrix = velocity->GetMatrix();
+  AffineTransformType::MatrixType newMatrix = transform->GetMatrix();
   newMatrix *= factor;
-  partialVelocity->SetMatrix(newMatrix);
+  result->SetMatrix(newMatrix);
   
-  AffineTransformType::OutputVectorType newOffset = velocity->GetOffset();
+  AffineTransformType::OutputVectorType newOffset = transform->GetOffset();
   newOffset *= factor;
-  partialVelocity->SetOffset(newOffset);
+  result->SetOffset(newOffset);
 
-  return partialVelocity;
-}
-
-template< class TScalarType, unsigned int NDimensions >
-typename LocalAffineTransform< TScalarType, NDimensions >::AffineTransformPointer 
-LocalAffineTransform< TScalarType, NDimensions >
-::GetResidualTransform(double portion)
-{
-  AffineTransformPointer partialVelocity = this->GetPartialTransform(1-portion);
-
-  return partialVelocity;
+  return result;
 }
 
 template< class TScalarType, unsigned int NDimensions >
@@ -320,9 +315,9 @@ LocalAffineTransform< TScalarType, NDimensions >
 template< class TScalarType, unsigned int NDimensions >
 void 
 LocalAffineTransform< TScalarType, NDimensions >
-::WarpFixedMaskIntoPointSet(double timeStamp)
+::WarpFixedMaskIntoPointSet(int timeStamp)
 {
-  AffineTransformPointer forwardTransform = this->GetPartialTransform(timeStamp);
+  AffineTransformPointer forwardTransform = this->GetPartialTransform(0, timeStamp);
 
   this->WarpMaskIntoPointSet(this->m_SamplePointSet,
     this->m_FixedMaskImage, forwardTransform);
@@ -331,9 +326,9 @@ LocalAffineTransform< TScalarType, NDimensions >
 template< class TScalarType, unsigned int NDimensions >
 void 
 LocalAffineTransform< TScalarType, NDimensions >
-::WarpMovingMaskIntoPointSet(double timeStamp)
+::WarpMovingMaskIntoPointSet(int timeStamp)
 {
-  AffineTransformPointer backwardTransform = this->GetPartialTransform(timeStamp-1);
+  AffineTransformPointer backwardTransform = this->GetPartialTransform(this->m_TimeStampMax, timeStamp);
 
   this->WarpMaskIntoPointSet(this->m_SamplePointSet,
     this->m_MovingMaskImage, backwardTransform);
@@ -342,7 +337,7 @@ LocalAffineTransform< TScalarType, NDimensions >
 template< class TScalarType, unsigned int NDimensions >
 void 
 LocalAffineTransform< TScalarType, NDimensions >
-::ComputeSamplePointSet(double timeStamp)
+::ComputeSamplePointSet(int timeStamp)
 {
   //fill m_SamplePointSet with points
   this->m_SamplePointSet = PointSetType::New();
