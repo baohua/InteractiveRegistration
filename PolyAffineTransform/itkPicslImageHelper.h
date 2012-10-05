@@ -1,6 +1,7 @@
 #ifndef __itkPicslImageHelper_h
 #define __itkPicslImageHelper_h
 
+#include <sys/stat.h>
 #include "itkMacro.h"
 #include "itkObject.h"
 #include "itkSmartPointer.h"
@@ -38,13 +39,15 @@ public:
     GetCorners( const TRegion &region);
 
   static char *AppendNumberToFileName(char *numberedFileName, const char *fname, int id);
+  static char *AppendPathToFileName(char *fullFileName, const char *fname);
 
   template< class TVector >
   static void CopyWithMax(TVector &maxVec, const TVector &newVec);
   template< class TVector >
   static void CopyWithMin(TVector &minVec, const TVector &newVec);
 
-  static const bool m_Debug = true;
+  static bool m_Debug;
+  static char m_FilePath[256];
 
 protected:
   PicslImageHelper();

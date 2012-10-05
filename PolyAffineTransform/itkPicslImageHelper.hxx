@@ -17,6 +17,9 @@ PicslImageHelper
 {
 }
 
+bool PicslImageHelper::m_Debug = true;
+char PicslImageHelper::m_FilePath[256] = {'\0'};
+
 void
 PicslImageHelper::PrintSelf(std::ostream & os, Indent indent) const
 {
@@ -54,6 +57,60 @@ PicslImageHelper
   return cornerIndices;
 }
 
+char * 
+PicslImageHelper
+::AppendPathToFileName(char *fullFileName, const char *fname)
+{
+  // USED TO FILE SYSTEM OPERATION
+  struct stat st;
+  char pathSeparator = '/';
+  if(stat(m_FilePath, &st) != 0)
+    {
+    #if ( defined( _WIN64 ) || defined( _WIN32 ) || defined( WIN32 ) )
+    pathSeparator = '\\';
+    if (!CreateDirectory(m_FilePath, NULL))
+      {
+            std::string msg("The output directory did not exists, can't be created\n");
+            std::cerr << msg;
+            //throw std::runtime_error(msg);
+      }
+    #else
+    pathSeparator = '/';
+    if(mkdir(m_FilePath, S_IRWXU) != 0)
+      {
+            std::string msg("The output directory did not exist, can't be created\n");
+            std::cerr << msg;
+            //throw std::runtime_error(msg);
+      }
+    #endif
+    }
+  if (strlen(m_FilePath) == 0)
+    {
+    sprintf(fullFileName, "%s%s", m_FilePath, fname);
+    }
+  else
+    {
+    sprintf(fullFileName, "%s%c%s", m_FilePath, pathSeparator, fname);
+    }
+  return fullFileName;
+}
+
+char * 
+PicslImageHelper
+::AppendNumberToFileName(char *numberedFileName, const char *fname, int id)
+{
+  const char *dotPtr = strchr(fname, '.');
+  int  dotPos = dotPtr - fname;
+  char prefix[256], splitName[256];
+
+  strcpy(prefix, fname);
+  prefix[dotPos] = '\0';
+
+  sprintf(splitName, "%s%d%s", prefix, id, dotPtr);
+  strcpy(numberedFileName, splitName);
+
+  return numberedFileName;
+}
 
 template< class TImage>
 void 
@@ -74,11 +131,14 @@ PicslImageHelper
     {
     return;
     }
+  char fullName[256];
+  PicslImageHelper::AppendPathToFileName(fullName, fname);
+
   typedef ImageFileWriter<TImage> WriterType;
   
   typename WriterType::Pointer writer = WriterType::New();
   writer->SetInput(image);
-  writer->SetFileName( fname );
+  writer->SetFileName( fullName );
 
   try
     {
@@ -91,23 +151,6 @@ PicslImageHelper
     }
 
   return;
-}
-
-char * 
-PicslImageHelper
-::AppendNumberToFileName(char *numberedFileName, const char *fname, int id)
-{
-  const char *dotPtr = strchr(fname, '.');
-  int  dotPos = dotPtr - fname;
-  char prefix[256], splitName[256];
-
-  strcpy(prefix, fname);
-  prefix[dotPos] = '\0';
-
-  sprintf(splitName, "%s%d%s", prefix, id, dotPtr);
-  strcpy(numberedFileName, splitName);
-
-  return numberedFileName;
 }
 
 template< class TField>
@@ -129,6 +172,7 @@ PicslImageHelper
     {
     return;
     }
+
   const unsigned int ImageDimension = TField::ImageDimension;
   typedef typename TField::PixelType VectorType;
   typedef typename TField::IndexType IndexType;
@@ -167,10 +211,12 @@ PicslImageHelper
     {
     char newName[256];
     PicslImageHelper::AppendNumberToFileName(newName, fname, d);
+    char fullName[256];
+    PicslImageHelper::AppendPathToFileName(fullName, newName);
 
     typename WriterType::Pointer writer = WriterType::New();
     writer->SetInput(imageVector[d]);
-    writer->SetFileName( newName );
+    writer->SetFileName( fullName );
     try
       {
       writer->Update();

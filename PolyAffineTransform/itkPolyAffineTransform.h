@@ -173,8 +173,8 @@ public:
   typedef typename MaskImageType::SpacingType                  SpacingType;
   typedef typename MaskImageType::DirectionType                DirectionType;
 
-  typedef typename itk::Image<TScalarType, NDimensions>        WeightImageType;
-  typedef typename WeightImageType::Pointer                    WeightImagePointer;
+  typedef typename itk::Image<TScalarType, NDimensions>        DistanceMapImageType;
+  typedef typename DistanceMapImageType::Pointer               DistanceMapImagePointer;
 
   typedef std::vector<PointSetPointer>                         PointSetVectorType;
 
@@ -189,7 +189,7 @@ public:
   /** Transform queue type */
   typedef std::vector<LocalAffineTransformPointer>             LocalAffineTransformVectorType;
   typedef std::vector<TrajectoryImagePointer>                  TrajectoryImageVectorType;
-  typedef std::vector<WeightImagePointer>                      WeightImageVectorType;
+  typedef std::vector<DistanceMapImagePointer>                 DistanceMapImageVectorType;
 
   LocalAffineTransformVectorType & GetLocalAffineTransformVector()
     {
@@ -344,8 +344,8 @@ public:
   bool PointExistsInOtherTrajectories(unsigned int transformId, IndexType index);
   void CombineTrajectories();
 
-  WeightImagePointer ComputeBoundaryWeightImage();
-  WeightImagePointer ComputeTrajectoryWeightImage(TrajectoryImagePointer traj);
+  DistanceMapImagePointer ComputeBoundaryWeightImage();
+  DistanceMapImagePointer ComputeTrajectoryWeightImage(TrajectoryImagePointer traj);
 
   void ComputeWeightedSumOfVelocityFields();
   void ComputeWeightedSumOfVelocitiesAtPoint(DisplacementVectorType &velocitySum, const PointType &point,
@@ -396,10 +396,10 @@ private:
   TrajectoryImageVectorType                 m_TrajectoryImageVector;
   
   TrajectoryImagePointer                    m_CombinedTrajectoryImage;
-  WeightImagePointer                        m_CombinedTrajectoryWeightImage;
+  DistanceMapImagePointer                        m_CombinedTrajectoryWeightImage;
 
-  WeightImageVectorType                     m_TrajectoryWeightImageVector;
-  WeightImagePointer                        m_BoundaryWeightImage;
+  DistanceMapImageVectorType                     m_TrajectoryDistanceMapImageVector;
+  DistanceMapImagePointer                        m_BoundaryWeightImage;
 
   int                                       m_PadBoundary;
   int                                       m_PadTrajectory;

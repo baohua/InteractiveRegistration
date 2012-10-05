@@ -659,12 +659,12 @@ PolyAffineTransform< TScalarType, NDimensions >
 
 template< class TScalarType,
           unsigned int NDimensions >
-typename PolyAffineTransform< TScalarType, NDimensions >::WeightImagePointer
+typename PolyAffineTransform< TScalarType, NDimensions >::DistanceMapImagePointer
 PolyAffineTransform< TScalarType, NDimensions >
 ::ComputeTrajectoryWeightImage(TrajectoryImagePointer traj)
 {
   typedef itk::SignedMaurerDistanceMapImageFilter
-    <TrajectoryImageType, WeightImageType>                     DistanceMapImageFilterType;
+    <TrajectoryImageType, DistanceMapImageType>                DistanceMapImageFilterType;
   typedef typename DistanceMapImageFilterType::Pointer         DistanceMapImageFilterPointer;
 
   DistanceMapImageFilterPointer filter = DistanceMapImageFilterType::New();
@@ -675,18 +675,18 @@ PolyAffineTransform< TScalarType, NDimensions >
   filter->SetInsideIsPositive( false ); //outside is positive
   filter->Update();
 
-  WeightImagePointer output = filter->GetOutput();
+  DistanceMapImagePointer output = filter->GetOutput();
   return output;
 }
 
 template< class TScalarType,
           unsigned int NDimensions >
-typename PolyAffineTransform< TScalarType, NDimensions >::WeightImagePointer
+typename PolyAffineTransform< TScalarType, NDimensions >::DistanceMapImagePointer
 PolyAffineTransform< TScalarType, NDimensions >
 ::ComputeBoundaryWeightImage()
 {
   typedef itk::SignedMaurerDistanceMapImageFilter
-    <MaskImageType, WeightImageType>                           DistanceMapImageFilterType;
+    <MaskImageType, DistanceMapImageType>                           DistanceMapImageFilterType;
   typedef typename DistanceMapImageFilterType::Pointer         DistanceMapImageFilterPointer;
 
   DistanceMapImageFilterPointer filter = DistanceMapImageFilterType::New();
@@ -697,7 +697,7 @@ PolyAffineTransform< TScalarType, NDimensions >
   filter->SetInsideIsPositive( true ); //inside is positive
   filter->Update();
 
-  WeightImagePointer output = filter->GetOutput();
+  DistanceMapImagePointer output = filter->GetOutput();
   return output; 
 }
 
@@ -720,9 +720,9 @@ PolyAffineTransform< TScalarType, NDimensions >
     trans->ComputeMovingMaskImage();  
     trans->ComputeSamplePointSet(0);
 
-    itk::PicslImageHelper::WriteImage<LocalAffineTransformType::MaskImageType>(
+    PicslImageHelper::WriteImage<LocalAffineTransformType::MaskImageType>(
       trans->GetFixedMaskImage(), "tmpFixedMask.nii", t);
-    itk::PicslImageHelper::WriteImage<LocalAffineTransformType::MaskImageType>(
+    PicslImageHelper::WriteImage<LocalAffineTransformType::MaskImageType>(
       trans->GetMovingMaskImage(), "tmpMovingMask.nii", t);
     }
 
@@ -732,12 +732,12 @@ PolyAffineTransform< TScalarType, NDimensions >
     (this->m_BoundaryMask, "tmpBoundMask.nii");
 
   this->m_BoundaryWeightImage = this->ComputeBoundaryWeightImage();
-  PicslImageHelper::WriteImage<WeightImageType>
+  PicslImageHelper::WriteImage<DistanceMapImageType>
     (this->m_BoundaryWeightImage, "tmpBoundWeight.nii");
 
   //Initialize trajectory vector, its elments, and its frontier point sets
   unsigned int transformNumber = this->GetNumberOfLocalAffineTransforms();
-  this->m_TrajectoryWeightImageVector.resize(transformNumber);
+  this->m_TrajectoryDistanceMapImageVector.resize(transformNumber);
   this->m_TrajectoryImageVector.resize(transformNumber);
 
   //Initialize the overall displacement field
@@ -786,7 +786,7 @@ PolyAffineTransform< TScalarType, NDimensions >
     ownerTraj = -1;
     for (unsigned int t=0; t<numTrans; t++)
       {
-      distances[t] = this->m_TrajectoryWeightImageVector[t]->GetPixel(index);	
+      distances[t] = this->m_TrajectoryDistanceMapImageVector[t]->GetPixel(index);	
       if (distances[t] <= 0)
         {
         distances[t] = 0;
@@ -915,7 +915,7 @@ PolyAffineTransform< TScalarType, NDimensions >
   if (overlap) //rewind trajectory
     {
     LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[overlapTransformId];
-    int rewindTime = (trans->GetStartTime() + trans->GetStopTime()) / 2; //any better solution?
+    int rewindTime = (int)(0.3*trans->GetStartTime() + 0.7*trans->GetStopTime()); //any better solution?
     this->RewindTrajectory(overlapTransformId, rewindTime); //rewind trajectory
     trans->SetStopTime(rewindTime);
 
@@ -926,10 +926,10 @@ PolyAffineTransform< TScalarType, NDimensions >
 
   for (unsigned int t = 0; t < this->GetNumberOfLocalAffineTransforms(); t++)
     {
-    this->m_TrajectoryWeightImageVector[t] = this->ComputeTrajectoryWeightImage(
+    this->m_TrajectoryDistanceMapImageVector[t] = this->ComputeTrajectoryWeightImage(
       this->m_TrajectoryImageVector[t]);
-    PicslImageHelper::WriteImage<WeightImageType>
-      (this->m_TrajectoryWeightImageVector[t], "tmpTrajWeight.nii", 
+    PicslImageHelper::WriteImage<DistanceMapImageType>
+      (this->m_TrajectoryDistanceMapImageVector[t], "tmpTrajWeight.nii", 
       t*10000 + this->m_LocalAffineTransformVector[t]->GetStopTime());
     }
 
@@ -939,7 +939,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 
   PicslImageHelper::WriteImage<TrajectoryImageType>
         (this->m_CombinedTrajectoryImage, "tmpTrajComb.nii", this->GetMinStopTime());  
-  PicslImageHelper::WriteImage<WeightImageType>
+  PicslImageHelper::WriteImage<DistanceMapImageType>
         (this->m_CombinedTrajectoryWeightImage, "tmpTrajCombWeight.nii", this->GetMinStopTime());
 
   this->ComputeWeightedSumOfVelocityFields();

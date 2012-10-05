@@ -38,9 +38,28 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
     {
     std::cerr << "Missing Parameters " << std::endl;
     std::cerr << "Usage: " << argv[0];
-    std::cerr << " OutputDisplacementFieldFile ";
+    std::cerr << " OutputDisplacementFieldFile " << std::endl;
+    std::cerr << "Usage: " << argv[0];
+    std::cerr << " OutputDirectory/OutputDisplacementFieldFile " << std::endl;
     return EXIT_FAILURE;
     }
+  char *filePath = PicslImageHelper::m_FilePath;
+  strcpy(filePath, argv[1]);
+  char *forwardSlashPtr = strchr(filePath, '/');
+  char *backwardSlashPtr = strchr(filePath, '\\');
+  if (forwardSlashPtr) 
+    {
+    forwardSlashPtr[0] = '\0';
+    }
+  else if (backwardSlashPtr)
+    {
+    backwardSlashPtr[0] = '\0';
+    }
+  else
+    {
+    filePath[0] = '\0';
+    }
+  char *fileName = argv[1] + strlen(filePath);
 
   //create a deformation field transform
   //typedef TranslationTransform<double, Dimension>
@@ -50,7 +69,44 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   typedef PolyAffineTransformType::LocalAffineTransformType LocalAffineTransformType;
   typedef PolyAffineTransformType::DisplacementFieldType DisplacementFieldType;
   typedef LocalAffineTransformType::MaskImageType MaskImageType;
-  typedef itk::ImageFileWriter<DisplacementFieldType> WriterType;
+
+  typedef itk::GroupSpatialObject< Dimension > SceneType;
+  typedef itk::BoxSpatialObject< Dimension > BoxType;
+
+  SceneType::Pointer scene1 = SceneType::New();
+  SceneType::Pointer scene2 = SceneType::New();
+  BoxType::Pointer box1 = BoxType::New();
+  BoxType::Pointer box2 = BoxType::New();
+  scene1->AddSpatialObject(box1);
+  scene2->AddSpatialObject(box2);
+  
+  BoxType::SizeType boxsize1;
+  BoxType::SizeType boxsize2;
+  boxsize1.Fill(20);
+  box1->SetSize( boxsize1 );
+  boxsize2.Fill(20);
+  box2->SetSize( boxsize2 );
+
+  BoxType::TransformType::OffsetType boxOffset1;
+  BoxType::TransformType::OffsetType boxOffset2;
+  //not crossing below
+  double offset1[] = {50.0, 10.0, 50.0};
+  double offset2[] = {10.0, 50.0, 50.0};
+  //crossing below
+  //double offset1[] = {10.0, 10.0, 50.0};
+  //double offset2[] = {50.0, 10.0, 50.0};
+  for (unsigned int d=0; d<Dimension; d++)
+    {
+    boxOffset1[d] = offset1[d];
+    boxOffset2[d] = offset2[d];
+    }
+  box1->GetObjectToParentTransform()->SetOffset( boxOffset1 );
+  box1->ComputeObjectToWorldTransform();
+  box2->GetObjectToParentTransform()->SetOffset( boxOffset2 );
+  box2->ComputeObjectToWorldTransform();
+
+  MaskImageType::SizeType size;
+  size.Fill(150);
 
   PolyAffineTransformType::Pointer polyTransform = PolyAffineTransformType::New();
   LocalAffineTransformType::Pointer localTransform1 = LocalAffineTransformType::New();
@@ -69,43 +125,6 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   localTransform1->SetOffset(affineOffset1);
   localTransform2->SetOffset(affineOffset2);
 
-  typedef itk::GroupSpatialObject< Dimension > SceneType;
-  typedef itk::BoxSpatialObject< Dimension > BoxType;
-
-  SceneType::Pointer scene1 = SceneType::New();
-  SceneType::Pointer scene2 = SceneType::New();
-  BoxType::Pointer box1 = BoxType::New();
-  BoxType::Pointer box2 = BoxType::New();
-  scene1->AddSpatialObject(box1);
-  scene2->AddSpatialObject(box2);
-  
-  BoxType::SizeType boxsize1;
-  BoxType::SizeType boxsize2;
-  boxsize1.Fill(30);
-  box1->SetSize( boxsize1 );
-  boxsize2.Fill(30);
-  box2->SetSize( boxsize2 );
-
-  BoxType::TransformType::OffsetType boxOffset1;
-  BoxType::TransformType::OffsetType boxOffset2;
-  //not crossing below
-  //double offset1[] = {50.0, 10.0, 50.0};
-  //double offset2[] = {10.0, 50.0, 50.0};
-  //crossing below
-  double offset1[] = {10.0, 10.0, 50.0};
-  double offset2[] = {50.0, 10.0, 50.0};
-  for (unsigned int d=0; d<Dimension; d++)
-    {
-    boxOffset1[d] = offset1[d];
-    boxOffset2[d] = offset2[d];
-    }
-  box1->GetObjectToParentTransform()->SetOffset( boxOffset1 );
-  box1->ComputeObjectToWorldTransform();
-  box2->GetObjectToParentTransform()->SetOffset( boxOffset2 );
-  box2->ComputeObjectToWorldTransform();
-
-  MaskImageType::SizeType size;
-  size.Fill(150);
   localTransform1->ComputeFixedMaskImageFromSpatialObject<SceneType>(scene1, size);
   localTransform2->ComputeFixedMaskImageFromSpatialObject<SceneType>(scene2, size);
 
@@ -115,22 +134,8 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
 
   DisplacementFieldType::Pointer displacementField = polyTransform->GetDisplacementField();
 
-  WriterType::Pointer writer = WriterType::New();
-  writer->SetInput(displacementField);
-  writer->SetFileName( argv[ 1 ] );
-  try
-    {
-    writer->Update();
-    }
-  catch ( itk::ExceptionObject & e )
-    {
-    std::cerr << "Exception detected while generating displacement field" << argv[1];
-    std::cerr << " : "  << e.GetDescription();
-    return EXIT_FAILURE;
-    }
-  
-  itk::PicslImageHelper::WriteDisplacementField<DisplacementFieldType>
-    (displacementField, argv[1]);
+  PicslImageHelper::WriteImage<DisplacementFieldType>(displacementField, fileName);
+  PicslImageHelper::WriteDisplacementField<DisplacementFieldType>(displacementField, fileName);
 
   std::cout << "Test PASSED." << std::endl;
 
