@@ -234,17 +234,17 @@ void
 LocalAffineTransform< TScalarType, NDimensions >
 ::DilateFixedMaskImage(unsigned int radius)
   {
-  typedef itk::BinaryBallStructuringElement<MaskImageType::PixelType,
+  typedef typename itk::BinaryBallStructuringElement<typename MaskImageType::PixelType,
     NDimensions> StructuringElementType;
 
   StructuringElementType structuringElement;
   structuringElement.SetRadius(radius);
   structuringElement.CreateStructuringElement();
  
-  typedef itk::BinaryDilateImageFilter<MaskImageType, MaskImageType, 
+  typedef typename itk::BinaryDilateImageFilter<MaskImageType, MaskImageType, 
     StructuringElementType> BinaryDilateImageFilterType;
  
-  BinaryDilateImageFilterType::Pointer dilateFilter
+  typename BinaryDilateImageFilterType::Pointer dilateFilter
           = BinaryDilateImageFilterType::New();
   dilateFilter->SetInput(this->m_FixedMaskImage);
   dilateFilter->SetKernel(structuringElement);
