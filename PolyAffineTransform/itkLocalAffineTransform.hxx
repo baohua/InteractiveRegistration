@@ -248,7 +248,7 @@ LocalAffineTransform< TScalarType, NDimensions >
           = BinaryDilateImageFilterType::New();
   dilateFilter->SetInput(this->m_FixedMaskImage);
   dilateFilter->SetKernel(structuringElement);
- 
+  dilateFilter->SetDilateValue(1); //binary mask
   dilateFilter->Update();
 
   MaskImagePointer dilatedImage = dilateFilter->GetOutput();
