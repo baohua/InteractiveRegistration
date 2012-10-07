@@ -345,32 +345,115 @@ public:
     return imageValue - 1;
   }
 
+  /** Get the distance between voxel at index and at index+1.
+   *  index+1 is for the next voxel with all index[i] added by 1.
+   */
   TScalarType GetDiagonalSpacing(MaskImagePointer mask);
 
+  /** This method initializes the buffers. 
+   *  
+   *  (1) For each local affine transform, it dilates the fixed mask, 
+   *  compute the moving mask produced by the transform, and compute
+   *  the sample point set at time 0.
+   *
+   *  (2) It compute m_BoundaryMask as the union of the image
+   *  masks of all transforms. Then it computes the distance map
+   *  of the boundary mask.
+   *
+   *  (3) It allocates the array for trajectories of local transforms
+   *  and the array for distance maps of the trajectories. Also it 
+   *  allocates the memory buffer for each trajectory and the combined
+   *  trajectory. Note: the memory buffers for distance maps are 
+   *  allocated in the distance map filter.
+   *
+   *  (4) It allocates the memory buffers for m_DisplacementField
+   *  and m_VelocityField.
+   */
   bool InitializeBuffers();
+
+  /** Compute the boundary as the union of all moving and fixed image
+   *  domains of local transforms.
+   */
   void InitializeBoundaryMask();
+
+  /** Compute the minimum stop time stamps of all local transforms. 
+   *  It also prints the stop time stamps if debugInfo is not null.
+   */
   int GetMinStopTime(char *debugInfo = NULL);
 
-  void InitializeTrajectory(TrajectoryImagePointer &traj);
+  /** Rewind a trajectory of a transform back to stopTime.
+   */
   void RewindTrajectory(unsigned int transformId, int stopTime);
 
+  /** Move the current trajectory of a transform one step forward.
+   */
   void ComputeNextStepTrajectory(unsigned int transformId);
+
+  /** Check if the point specified by index exists in trajectories of 
+   *  transforms other than the transform specified by transformId.
+   */
   bool PointExistsInOtherTrajectories(unsigned int transformId, IndexType index);
+
+  /** Combine multiple trajectories into one trajectory. 
+   */
   void CombineTrajectories();
 
+  /** Compute the distance map of the boundary mask.
+   */
   DistanceMapImagePointer ComputeBoundaryDistanceMapImage();
+
+  /** Compute the distance map of a trajectory.
+   */
   DistanceMapImagePointer ComputeTrajectoryDistanceMapImage(TrajectoryImagePointer traj);
 
+  /** Comopute the weighted sum of velocity fields specified by the local
+   *  affine transforms.
+   */
   void ComputeWeightedSumOfVelocityFields();
+
+  /** Compute the weighted sum of velocity vectors at a point with given
+   *  distances to different trajectories and the boundary. 
+   */
   void ComputeWeightedSumOfVelocitiesAtPoint(DisplacementVectorType &velocitySum, const PointType &point,
     const double distances[], double distanceToCombinedTraj, double distanceToImageBoundary);
 
+  /** Compute the exponential mapping a velocity field.
+   */
   DisplacementFieldPointer ComputeExponentialDisplacementField(
     const DisplacementFieldPointer &velocityField);
 
+  /** Compute the velocity field before the trajectories overlap.
+   *
+   *  First it computes the trajectories of each local transform
+   *  from its current m_StartTime until the overlap happens.
+   *  There is a switch m_StopAllTrajectoriesAtOverlap which
+   *  decides the behaviour when an overlap happens. If the swith
+   *  is false, other trajectories without overlap will continue
+   *  to move forward. Otherwise, all trajectories will stop.
+   *
+   *  Second it will rewind backwards the trajectories with overlap.
+   *  Therefore, there will be some extra space between trajectories.
+   *
+   *  Second it compute the distance maps of these trajectories.
+   *
+   *  Third it compute the weighted sum of the velocity fields
+   *  according to the distances.
+   */
   void ComputeVelocityFieldBeforeOverlap();
 
+  /** Compute the displacement field of this PolyAffineTransform.
+   *  (1) It initializes the trajectories of local transforms.
+   *  (2) It will compute the velocity sum for each segment of time
+   *  during which there is no trajectory overlap. 
+   *  (3) It computes the expontial mapping to get a displacement field
+   *  during that time segment.
+   *  (4) It computes the composition of these displacement fields at
+   *  mutiple tiem segments.
+   */
   void ComputeDisplacementField();
+
+  /** Get the displacement field of this PolyAffineTransform.
+   */
   virtual DisplacementFieldType* GetDisplacementField();
 
 protected:
@@ -396,36 +479,52 @@ private:
 
   // m_TimeStampLog is the logarithm of the number of time stamps
   int                                       m_TimeStampLog;
-  // m_TimeStampMax is exp(m_TimeStampLog)
+
+  /** The number time stamps, usually it is 2^N with the least N such
+   *  that 2^N >= max(size(image)), the maximum number of voxels on
+   *  each dimension.
+   */
   int                                       m_TimeStampMax;
 
-  MaskImagePointer                          m_BoundaryMask;
-
-  //Summed velocity field
-  DisplacementFieldPointer                  m_VelocityField;
-  //Total displacement field
-  DisplacementFieldPointer                  m_DisplacementField;
-
-  LocalAffineTransformVectorType            m_LocalAffineTransformVector;  
-  TrajectoryImageVectorType                 m_TrajectoryImageVector;
-  
-  TrajectoryImagePointer                    m_CombinedTrajectoryImage;
-  DistanceMapImagePointer                   m_CombinedTrajectoryDistanceMapImage;
-
-  DistanceMapImageVectorType                m_TrajectoryDistanceMapImageVector;
-  DistanceMapImagePointer                   m_BoundaryDistanceMapImage;
-
-  //pad to image boundary
+  // Pad to the image boundary
   int                                       m_PadBoundary;
-  //radius to dilate the trajectory
+  // Radius to dilate the trajectory
   int                                       m_PadTrajectory;
-  //when it is set, stop all trajectories at overlap
+  // A switch to decide if it stops all trajectories at overlap
   bool                                      m_StopAllTrajectoriesAtOverlap;
 
-  //for exponential decay rate of boundary distance
+  // For exponential decay rate of boundary distance
   double                                    m_DecayRateOfBoundary;
-  //for exponential decay rate of trajectory distance
+  // For exponential decay rate of trajectory distance
   double                                    m_DecayRateOfTrajectory;
+
+  // Array of the local affine transforms
+  LocalAffineTransformVectorType            m_LocalAffineTransformVector;  
+
+  // The velocity field summed from different local transforms
+  DisplacementFieldPointer                  m_VelocityField;
+  // The total displacement field
+  DisplacementFieldPointer                  m_DisplacementField;
+
+  // Boundary mask image includes the all image domains of local transforms
+  // It also apply a padding around it border specified by m_PadBoundary.
+  MaskImagePointer                          m_BoundaryMask;
+
+  /** Array of the trajectories of local transforms. m_TrajectoryImageVector[t]
+   *  stores the t-th trajectory during [m_StartTime, m_StopTime] of the t-th
+   *  local transform.
+   */
+  TrajectoryImageVectorType                 m_TrajectoryImageVector;  
+
+  // Combined image of the trajectories of local transforms 
+  TrajectoryImagePointer                    m_CombinedTrajectoryImage;
+
+  // Distance map of the boundary image
+  DistanceMapImagePointer                   m_BoundaryDistanceMapImage;
+  // Array of distance maps of the trajectories
+  DistanceMapImageVectorType                m_TrajectoryDistanceMapImageVector;
+  // Distance map to the combined trajectory
+  DistanceMapImagePointer                   m_CombinedTrajectoryDistanceMapImage;
 
 }; //class PolyAffineTransform
 }  // namespace itk

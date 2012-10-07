@@ -147,24 +147,38 @@ public:
   itkSetMacro(OverlapPointId, unsigned int);
   itkGetMacro(OverlapPointId, unsigned int);
 
-  /** Set the Mask Image from a Spatial Object.  */
+  /** Compute the fixed mask image from a Spatial Object.  */
   template< class TSpatialObject > 
   void ComputeFixedMaskImageFromSpatialObject(TSpatialObject *spatialObject, SizeType size);
+
+  /** Compute the fixed mask image from a Spatial Object with information 
+   *  about origin, orientation and spacing.  */
   template< class TSpatialObject > 
   void ComputeFixedMaskImageFromSpatialObject(TSpatialObject *spatialObject,
                                 PointType origin,
                                 DirectionType direction,
                                 SpacingType spacing,
                                 SizeType size);
+
+  /** Dilate the fixed mask image with a radius. */
   void DilateFixedMaskImage(unsigned int radius);
 
+  /**
+   * Transform the fixed mask into the moving mask. The moving mask
+   * domain include both the fixed and moving domain.
+   */
   void ComputeMovingMaskImage();
+
+  /**
+   * Compute the SamplePointSet at timeStamp. It warps the fixed mask
+   * and the moving mask into a virtual domain at timeStamp. 
+   */
   void ComputeSamplePointSet(int timeStamp);
 
-  /** Compute the principal logarithm of an affine transform */
+  /** Compute the principal logarithm of the homgoeneous matrix of an affine transform. */
   vnl_matrix<TScalarType> ComputeLogarithmMatrix(AffineTransformPointer affineTransform);
 
-  /** Compute the exponential of an affine transform */
+  /** Compute the exponential transform from a homogeneous matrix. */
   AffineTransformPointer ComputeExponentialTransform(vnl_matrix<TScalarType> velocity);
 
   /**
@@ -173,20 +187,36 @@ public:
    */
   AffineTransformPointer ScaleMatrixOffset(AffineTransformPointer velocity, double factor);
 
+  /**
+   * Convert a homogeneous matrix into an affine transform.
+   */
   void SetHomogeneousTransform(AffineTransformPointer &affineTransform,
     const vnl_matrix<TScalarType> &homoMatrix);
 
+  /** Get the homogeneous matrix from an affine transform. */
   void GetHomogeneousMatrix(vnl_matrix<TScalarType> &homoMatrix, 
     const AffineTransformPointer &affineTransform);
 
+  /** Compute the partial transform during [startTime, stopTime].
+   *  It is computed by exp(t*log(T)) where t=(stopTime-startTime)/m_TimeStampMax,
+   *  and T is this transform. */
   AffineTransformPointer GetPartialTransform(int startTime, int stopTime);
+
+  /** Compute the homogeneous matrix of the velocity of this transform. */
   vnl_matrix<TScalarType> GetVelocityMatrix();
+
+  /** Update the partial velocity matrix during current [m_StartTime, m_StopTime]. */
   void UpdatePartialVelocityMatrix();
+
+  /** Get the partial velocity vector at a point during current [m_StartTime, m_StopTime]. */ 
   OutputVectorType GetPartialVelocityAtPoint(const PointType &point);
   
+  /** Warp a mask into a PointSet by a transform. */
   void WarpMaskIntoPointSet(PointSetPointer &pointSet, const MaskImagePointer &mask,
                          const AffineTransformPointer &transform);
+  /** Warp the fixed mask into a PointSet in a virtual domain at timeStamp. */
   void WarpFixedMaskIntoPointSet(int timeStamp);
+  /** Warp the moving mask into a PointSet in a virtual domain at timeStamp. */
   void WarpMovingMaskIntoPointSet(int timeStamp);
 
 protected:
@@ -213,18 +243,29 @@ private:
   LocalAffineTransform(const Self & other);
   const Self & operator=(const Self &);
 
-  int m_StartTime, m_StopTime, m_TimeStampMax;
+  /** Each transform has its own starting time and stopping time of 
+   *  its current trajectory. */
+  int m_StartTime, m_StopTime;
+
+  /** The number time stamps, usually it is 2^N with the least N such
+   *  that 2^N >= max(size(image)), the maximum number of voxels on
+   *  each dimension.
+   */
+  int m_TimeStampMax;
 
   bool m_Overlapped;
   unsigned int m_OverlapPointId;
 
+  //The logarithm matrix of the homogeneous matrix of this transform .
   vnl_matrix<TScalarType> m_VelocityMatrix;
+
+  //m_VelocityMatrix scaled by current time period.
   vnl_matrix<TScalarType> m_PartialVelocityMatrix;
 
-  PointSetPointer m_FixedPointSet;
-
-  //points in the moving mask warped to fixed domain
+  //sample points from which we compute trajectories.
+  //now it contains points at fixed image domain.
   PointSetPointer m_SamplePointSet;
+
 
   MaskImagePointer m_FixedMaskImage;
   MaskImagePointer m_MovingMaskImage;

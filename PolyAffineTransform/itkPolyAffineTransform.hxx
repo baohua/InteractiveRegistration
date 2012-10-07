@@ -540,23 +540,6 @@ template< class TScalarType,
           unsigned int NDimensions >
 void
 PolyAffineTransform< TScalarType, NDimensions >
-::InitializeTrajectory(TrajectoryImagePointer &traj)
-{
-  if (traj.IsNull())
-    {
-    traj = TrajectoryImageType::New();
-    traj->CopyInformation(this->m_BoundaryMask);
-    traj->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
-    traj->Allocate();
-    }
-
-  traj->FillBuffer(0);
-}
-
-template< class TScalarType,
-          unsigned int NDimensions >
-void
-PolyAffineTransform< TScalarType, NDimensions >
 ::RewindTrajectory(unsigned int transformId, int stopTime)
 {
   this->m_LocalAffineTransformVector[transformId]->SetStopTime(stopTime);
@@ -706,6 +689,25 @@ PolyAffineTransform< TScalarType, NDimensions >
   return output; 
 }
 
+/** This method initializes the buffers. 
+ *  
+ *  (1) For each local affine transform, it dilates the fixed mask, 
+ *  compute the moving mask produced by the transform, and compute
+ *  the sample point set at time 0.
+ *
+ *  (2) It compute m_BoundaryMask as the union of the image
+ *  masks of all transforms. Then it computes the distance map
+ *  of the boundary mask.
+ *
+ *  (3) It allocates the array for trajectories of local transforms
+ *  and the array for distance maps of the trajectories. Also it 
+ *  allocates the memory buffer for each trajectory and the combined
+ *  trajectory. Note: the memory buffers for distance maps are 
+ *  allocated in the distance map filter.
+ *
+ *  (4) It allocates the memory buffers for m_DisplacementField
+ *  and m_VelocityField.
+ */
 template< class TScalarType,
           unsigned int NDimensions >
 bool
@@ -745,8 +747,23 @@ PolyAffineTransform< TScalarType, NDimensions >
 
   //Initialize trajectory vector, its elments, and its frontier point sets
   unsigned int transformNumber = this->GetNumberOfLocalAffineTransforms();
-  this->m_TrajectoryDistanceMapImageVector.resize(transformNumber);
   this->m_TrajectoryImageVector.resize(transformNumber);
+  this->m_TrajectoryDistanceMapImageVector.resize(transformNumber);
+
+  TrajectoryImagePointer traj = TrajectoryImageType::New();
+  traj->CopyInformation(this->m_BoundaryMask);
+  traj->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
+  traj->Allocate();
+  m_CombinedTrajectoryImage = traj;
+
+  for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
+    {
+    traj = TrajectoryImageType::New();
+    traj->CopyInformation(this->m_BoundaryMask);
+    traj->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
+    traj->Allocate();
+    this->m_TrajectoryImageVector[t] = traj;
+    }
 
   //Initialize the overall displacement field
   this->m_DisplacementField = DisplacementFieldType::New();
@@ -873,6 +890,9 @@ PolyAffineTransform< TScalarType, NDimensions >
   velocitySum *= (1.0 / weightSum * weightCombinedTraj * weightBoundary);
 }
 
+/** Compute the minimum stop time stamps of all local transforms. 
+ *  It also prints the stop time stamps if debugInfo is not null.
+ */
 template< class TScalarType,
           unsigned int NDimensions >
 int
@@ -904,6 +924,23 @@ PolyAffineTransform< TScalarType, NDimensions >
   return minStopTime;
 }
 
+/** Compute the velocity field before the trajectories overlap.
+ *
+ *  First it computes the trajectories of each local transform
+ *  from its current m_StartTime until the overlap happens.
+ *  There is a switch m_StopAllTrajectoriesAtOverlap which
+ *  decides the behaviour when an overlap happens. If the swith
+ *  is false, other trajectories without overlap will continue
+ *  to move forward. Otherwise, all trajectories will stop.
+ *
+ *  Second it will rewind backwards the trajectories with overlap.
+ *  Therefore, there will be some extra space between trajectories.
+ *
+ *  Second it compute the distance maps of these trajectories.
+ *
+ *  Third it compute the weighted sum of the velocity fields
+ *  according to the distances.
+ */
 template< class TScalarType,
           unsigned int NDimensions >
 void
@@ -985,8 +1022,8 @@ void
 PolyAffineTransform< TScalarType, NDimensions >
 ::CombineTrajectories()
 {
-  this->InitializeTrajectory(this->m_CombinedTrajectoryImage);
-  
+  this->m_CombinedTrajectoryImage->FillBuffer(0);
+
   typedef ImageRegionIteratorWithIndex< TrajectoryImageType > IteratorType;
 
   for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
@@ -1005,6 +1042,8 @@ PolyAffineTransform< TScalarType, NDimensions >
     }
 }
 
+/** Get the displacement field of this PolyAffineTransform.
+ */
 template< class TScalarType,
           unsigned int NDimensions >
 typename PolyAffineTransform< TScalarType, NDimensions >::DisplacementFieldType*
@@ -1018,6 +1057,15 @@ PolyAffineTransform< TScalarType, NDimensions >
   return this->m_DisplacementField;
 }
 
+/** Compute the displacement field of this PolyAffineTransform.
+ *  (1) It initializes the trajectories of local transforms.
+ *  (2) It will compute the velocity sum for each segment of time
+ *  during which there is no trajectory overlap. 
+ *  (3) It computes the expontial mapping to get a displacement field
+ *  during that time segment.
+ *  (4) It computes the composition of these displacement fields at
+ *  mutiple tiem segments.
+ */
 template< class TScalarType,
           unsigned int NDimensions >
 void
@@ -1050,7 +1098,7 @@ PolyAffineTransform< TScalarType, NDimensions >
       // at the beginning, each trajectory is empty and m_StopTime = m_StartTime - 1.
       trans->SetStopTime(DonePreviously - 1);
 
-      this->InitializeTrajectory(this->m_TrajectoryImageVector[t]);
+      this->m_TrajectoryImageVector[t]->FillBuffer(0);
       }
 
     //Compute the velocity field before overlap. It computes the trajectories,

@@ -32,6 +32,7 @@ LocalAffineTransform< TScalarType, NDimensions >::LocalAffineTransform():Supercl
   this->m_StartTime = 0;
   this->m_StopTime = 0;
   this->m_Overlapped = false;
+  this->m_TimeStampMax = 0;
 }
 
 /** Constructor with default arguments */
@@ -42,6 +43,7 @@ LocalAffineTransform< TScalarType, NDimensions >::LocalAffineTransform(unsigned 
   this->m_StartTime = 0;
   this->m_StopTime = 0;
   this->m_Overlapped = false;
+  this->m_TimeStampMax = 0;
 }
 
 /** Constructor with explicit arguments */
@@ -53,6 +55,7 @@ LocalAffineTransform< TScalarType, NDimensions >::LocalAffineTransform(const Mat
   this->m_StartTime = 0;
   this->m_StopTime = 0;
   this->m_Overlapped = false;
+  this->m_TimeStampMax = 0;
 }
 
 /**  Destructor */
@@ -148,6 +151,7 @@ LocalAffineTransform< TScalarType, NDimensions >
   return this->m_VelocityMatrix;
 }
 
+/** Update the partial velocity matrix during current [m_StartTime, m_StopTime]. */
 template< class TScalarType, unsigned int NDimensions >
 void
 LocalAffineTransform< TScalarType, NDimensions >
@@ -158,6 +162,7 @@ LocalAffineTransform< TScalarType, NDimensions >
   this->m_PartialVelocityMatrix *= timePeriod;
 }
 
+/** Get the partial velocity vector at a point during current [m_StartTime, m_StopTime]. */ 
 template< class TScalarType, unsigned int NDimensions >
 typename LocalAffineTransform< TScalarType, NDimensions >::OutputVectorType
 LocalAffineTransform< TScalarType, NDimensions >
@@ -256,6 +261,9 @@ LocalAffineTransform< TScalarType, NDimensions >
   this->m_FixedMaskImage = dilatedImage;
   }
 
+/** Compute the partial transform during [startTime, stopTime].
+ *  It is computed by exp(t*log(T)) where t=(stopTime-startTime)/m_TimeStampMax,
+ *  and T is this transform. */
 template< class TScalarType, unsigned int NDimensions >
 typename LocalAffineTransform< TScalarType, NDimensions >::AffineTransformPointer 
 LocalAffineTransform< TScalarType, NDimensions >
@@ -318,6 +326,7 @@ LocalAffineTransform< TScalarType, NDimensions >
   return result;
 }
 
+/** Warp a mask into a PointSet by a transform. */
 template< class TScalarType, unsigned int NDimensions >
 void 
 LocalAffineTransform< TScalarType, NDimensions >
@@ -342,6 +351,7 @@ LocalAffineTransform< TScalarType, NDimensions >
     }
 }
 
+/** Warp the fixed mask into a PointSet in a virtual domain at timeStamp. */
 template< class TScalarType, unsigned int NDimensions >
 void 
 LocalAffineTransform< TScalarType, NDimensions >
@@ -353,6 +363,7 @@ LocalAffineTransform< TScalarType, NDimensions >
     this->m_FixedMaskImage, forwardTransform);
 }
 
+/** Warp the moving mask into a PointSet in a virtual domain at timeStamp. */
 template< class TScalarType, unsigned int NDimensions >
 void 
 LocalAffineTransform< TScalarType, NDimensions >
@@ -369,6 +380,11 @@ void
 LocalAffineTransform< TScalarType, NDimensions >
 ::ComputeSamplePointSet(int timeStamp)
 {
+  if (this->m_TimeStampMax == 0)
+    {
+    itkWarningMacro("LocalAffineTransform::m_TimeStampMax must be set before ComputeSamplePointSet is called.");
+    return;
+    }
   //fill m_SamplePointSet with points
   this->m_SamplePointSet = PointSetType::New();
   this->WarpFixedMaskIntoPointSet(timeStamp);
@@ -376,10 +392,8 @@ LocalAffineTransform< TScalarType, NDimensions >
 }
 
 /**
- * Warp the fixed mask to the moving mask. The moving mask
- * uses the meta information from the fixed mask except its
- * region. Instead, the region will be expanded to contain
- * the warped mask.
+ * Transform the fixed mask into the moving mask. The moving mask
+ * domain include both the fixed and moving domain.
  */
 template< class TScalarType, unsigned int NDimensions >
 void 
