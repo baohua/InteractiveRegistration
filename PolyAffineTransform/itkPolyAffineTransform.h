@@ -358,8 +358,8 @@ public:
   bool PointExistsInOtherTrajectories(unsigned int transformId, IndexType index);
   void CombineTrajectories();
 
-  DistanceMapImagePointer ComputeBoundaryWeightImage();
-  DistanceMapImagePointer ComputeTrajectoryWeightImage(TrajectoryImagePointer traj);
+  DistanceMapImagePointer ComputeBoundaryDistanceMapImage();
+  DistanceMapImagePointer ComputeTrajectoryDistanceMapImage(TrajectoryImagePointer traj);
 
   void ComputeWeightedSumOfVelocityFields();
   void ComputeWeightedSumOfVelocitiesAtPoint(DisplacementVectorType &velocitySum, const PointType &point,
@@ -410,10 +410,10 @@ private:
   TrajectoryImageVectorType                 m_TrajectoryImageVector;
   
   TrajectoryImagePointer                    m_CombinedTrajectoryImage;
-  DistanceMapImagePointer                   m_CombinedTrajectoryWeightImage;
+  DistanceMapImagePointer                   m_CombinedTrajectoryDistanceMapImage;
 
   DistanceMapImageVectorType                m_TrajectoryDistanceMapImageVector;
-  DistanceMapImagePointer                   m_BoundaryWeightImage;
+  DistanceMapImagePointer                   m_BoundaryDistanceMapImage;
 
   //pad to image boundary
   int                                       m_PadBoundary;

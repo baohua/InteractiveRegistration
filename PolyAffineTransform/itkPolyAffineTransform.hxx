@@ -666,7 +666,7 @@ template< class TScalarType,
           unsigned int NDimensions >
 typename PolyAffineTransform< TScalarType, NDimensions >::DistanceMapImagePointer
 PolyAffineTransform< TScalarType, NDimensions >
-::ComputeTrajectoryWeightImage(TrajectoryImagePointer traj)
+::ComputeTrajectoryDistanceMapImage(TrajectoryImagePointer traj)
 {
   typedef itk::SignedMaurerDistanceMapImageFilter
     <TrajectoryImageType, DistanceMapImageType>                DistanceMapImageFilterType;
@@ -688,7 +688,7 @@ template< class TScalarType,
           unsigned int NDimensions >
 typename PolyAffineTransform< TScalarType, NDimensions >::DistanceMapImagePointer
 PolyAffineTransform< TScalarType, NDimensions >
-::ComputeBoundaryWeightImage()
+::ComputeBoundaryDistanceMapImage()
 {
   typedef itk::SignedMaurerDistanceMapImageFilter
     <MaskImageType, DistanceMapImageType>                           DistanceMapImageFilterType;
@@ -734,14 +734,14 @@ PolyAffineTransform< TScalarType, NDimensions >
       trans->GetMovingMaskImage(), "tmpMovingMask.nii", (int)(t+1));
     }
 
-  //Initialize BoundaryMask and its WeightImage
+  //Initialize BoundaryMask and its DistanceMapImage
   this->InitializeBoundaryMask();
   PicslImageHelper::WriteImage<MaskImageType>
     (this->m_BoundaryMask, "tmpBoundMask.nii");
 
-  this->m_BoundaryWeightImage = this->ComputeBoundaryWeightImage();
+  this->m_BoundaryDistanceMapImage = this->ComputeBoundaryDistanceMapImage();
   PicslImageHelper::WriteImage<DistanceMapImageType>
-    (this->m_BoundaryWeightImage, "tmpBoundWeight.nii");
+    (this->m_BoundaryDistanceMapImage, "tmpBoundDistance.nii");
 
   //Initialize trajectory vector, its elments, and its frontier point sets
   unsigned int transformNumber = this->GetNumberOfLocalAffineTransforms();
@@ -810,8 +810,8 @@ PolyAffineTransform< TScalarType, NDimensions >
       }
     else //the point is outside all trajectories
       {
-      distCombinedTraj = this->m_CombinedTrajectoryWeightImage->GetPixel(index); 
-      distBoundary = this->m_BoundaryWeightImage->GetPixel(index);
+      distCombinedTraj = this->m_CombinedTrajectoryDistanceMapImage->GetPixel(index); 
+      distBoundary = this->m_BoundaryDistanceMapImage->GetPixel(index);
       this->ComputeWeightedSumOfVelocitiesAtPoint(velocitySum, point,
         distances, distCombinedTraj, distBoundary);
       }
@@ -960,21 +960,21 @@ PolyAffineTransform< TScalarType, NDimensions >
 
   for (unsigned int t = 0; t < this->GetNumberOfLocalAffineTransforms(); t++)
     {
-    this->m_TrajectoryDistanceMapImageVector[t] = this->ComputeTrajectoryWeightImage(
+    this->m_TrajectoryDistanceMapImageVector[t] = this->ComputeTrajectoryDistanceMapImage(
       this->m_TrajectoryImageVector[t]);
     PicslImageHelper::WriteImage<DistanceMapImageType>
-      (this->m_TrajectoryDistanceMapImageVector[t], "tmpTrajWeight.nii", 
+      (this->m_TrajectoryDistanceMapImageVector[t], "tmpTrajDistance.nii", 
       (t+1)*10000 + this->m_LocalAffineTransformVector[t]->GetStopTime());
     }
 
   this->CombineTrajectories();
-  this->m_CombinedTrajectoryWeightImage = this->ComputeTrajectoryWeightImage(
+  this->m_CombinedTrajectoryDistanceMapImage = this->ComputeTrajectoryDistanceMapImage(
       this->m_CombinedTrajectoryImage);
 
   PicslImageHelper::WriteImage<TrajectoryImageType>
         (this->m_CombinedTrajectoryImage, "tmpTrajComb.nii", this->GetMinStopTime());  
   PicslImageHelper::WriteImage<DistanceMapImageType>
-        (this->m_CombinedTrajectoryWeightImage, "tmpTrajCombWeight.nii", this->GetMinStopTime());
+        (this->m_CombinedTrajectoryDistanceMapImage, "tmpTrajCombDistance.nii", this->GetMinStopTime());
 
   this->ComputeWeightedSumOfVelocityFields();
 }
