@@ -722,6 +722,8 @@ PolyAffineTransform< TScalarType, NDimensions >
   for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
     {
     LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[t];
+    this->m_LocalAffineTransformVector[t]->SetTimeStampMax(this->m_TimeStampMax);
+
     trans->DilateFixedMaskImage(this->m_PadTrajectory);
     trans->ComputeMovingMaskImage();  
     trans->ComputeSamplePointSet(0);
@@ -1032,7 +1034,6 @@ PolyAffineTransform< TScalarType, NDimensions >
     {
     this->m_LocalAffineTransformVector[t]->SetStopTime(0);
     this->m_LocalAffineTransformVector[t]->SetTimeStampMax(this->m_TimeStampMax);
-    this->m_LocalAffineTransformVector[t]->DilateFixedMaskImage(this->m_PadTrajectory);
     }
 
   while (this->GetMinStopTime("MainLoop") < this->m_TimeStampMax)
