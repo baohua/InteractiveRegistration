@@ -35,12 +35,14 @@ PolyAffineTransform< TScalarType, NDimensions >
   Superclass(0)
 {
   this->SetTimeStampLog(8); //by default 2^8 time stamps
+  this->m_TimeStampAutomaticFlag = true; //true to overwrite SetTimeStampLog()
 
   this->m_PadBoundary = 40;
   this->m_PadTrajectory = 2;
 
   this->m_DecayRateOfBoundary = 1*1;
   this->m_DecayRateOfTrajectory = 3*3;
+
   this->m_StopAllTrajectoriesAtOverlap = false;
 }
 
@@ -734,7 +736,6 @@ PolyAffineTransform< TScalarType, NDimensions >
   for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
     {
     LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[t];
-    trans->SetTimeStampMax(this->m_TimeStampMax);
 
     trans->DilateFixedMaskImage(this->m_PadTrajectory);
     trans->ComputeMovingMaskImage();  
@@ -755,6 +756,13 @@ PolyAffineTransform< TScalarType, NDimensions >
   PicslImageHelper::WriteImage<DistanceMapImageType>
     (this->m_BoundaryDistanceMapImage, "tmpBoundDistance.nii");
 
+  this->UpdateTimeStampIfAutomatic();
+  for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
+    {
+    LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[t];
+    trans->SetTimeStampMax(this->m_TimeStampMax);
+    }
+
   //Initialize trajectory vector, its elments, and its frontier point sets
   unsigned int transformNumber = this->GetNumberOfLocalAffineTransforms();
   this->m_TrajectoryImageVector.resize(transformNumber);
@@ -764,7 +772,7 @@ PolyAffineTransform< TScalarType, NDimensions >
   traj->CopyInformation(this->m_BoundaryMask);
   traj->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
   traj->Allocate();
-  m_CombinedTrajectoryImage = traj;
+  this->m_CombinedTrajectoryImage = traj;
 
   for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
     {
@@ -1135,7 +1143,9 @@ PolyAffineTransform< TScalarType, NDimensions >
     typename ComposerType::Pointer composer = ComposerType::New();
     composer->SetDisplacementField( exponentialField );
     composer->SetWarpingField( this->m_DisplacementField );
+    this->m_TimerDisplacementFieldComposing.Start();
     composer->Update();
+    this->m_TimerDisplacementFieldComposing.Stop();
 
     this->m_DisplacementField = composer->GetOutput();
     this->m_DisplacementField->DisconnectPipeline();
@@ -1143,6 +1153,50 @@ PolyAffineTransform< TScalarType, NDimensions >
 
   this->m_TimerComputeDisplacementField.Stop();
 }
+
+template< class TScalarType,
+          unsigned int NDimensions >
+void
+PolyAffineTransform< TScalarType, NDimensions >
+::UpdateTimeStampIfAutomatic()
+{
+  if (this->m_BoundaryMask.IsNull())
+    {
+    itkExceptionMacro("Please initialize m_BoundaryMask before automatically setting m_TimeStampMax.");
+    }
+
+  if (this->m_TimeStampAutomaticFlag)
+    {
+    RegionType region = this->m_BoundaryMask->GetLargestPossibleRegion();
+    SizeType size = region.GetSize();
+
+    double diagonalLength = 0.0;
+    for (unsigned int d=0; d<NDimensions; d++)
+      {
+      diagonalLength += size[d] * size[d];
+      }
+    diagonalLength = vcl_sqrt(diagonalLength);
+
+    int diagonalVoxels = itk::Math::RoundHalfIntegerUp<int, double>(diagonalLength);
+
+    int nonzeroBit, leftmostBit = -1;
+    for (int bit=0; bit<sizeof(diagonalVoxels)*8; bit++)
+      {
+      nonzeroBit = 1 << bit;
+      if ( (diagonalVoxels & nonzeroBit) != 0)
+        {
+        leftmostBit = bit;
+        }
+      }
+
+    this->m_TimeStampLog = leftmostBit + 1;
+    std::cout << "Automatic m_TimeStampLog = " << this->m_TimeStampLog << std::endl;
+
+    //m_TimeStampMax is the number of time stamps
+    this->m_TimeStampMax = 1 << this->m_TimeStampLog;
+    }
+}
+
 
 template< class TScalarType,
           unsigned int NDimensions >
@@ -1180,6 +1234,9 @@ PolyAffineTransform< TScalarType, NDimensions >
 
   std::cout << "m_TimerExponentialMapping.GetTotal() = " 
     << m_TimerExponentialMapping.GetTotal() << " seconds" << std::endl;
+  std::cout << "m_TimerDisplacementFieldComposing.GetTotal() = " 
+    << m_TimerDisplacementFieldComposing.GetTotal() << " seconds" << std::endl;
+
   std::cout << "m_TimerComputeDisplacementField.GetTotal() = " 
     << m_TimerComputeDisplacementField.GetTotal() << " seconds" << std::endl;
   

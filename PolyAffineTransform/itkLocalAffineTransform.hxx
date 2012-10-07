@@ -292,6 +292,7 @@ LocalAffineTransform< TScalarType, NDimensions >
     itkExceptionMacro("LocalAffineTransform::m_TimeStampMax must be set before GetPartialTransform is called.");
     return NULL;
     }
+
   AffineTransformPointer partialTransform = AffineTransformType::New();
   int duration = stopTime - startTime;
   if (duration == 0)
@@ -311,7 +312,7 @@ LocalAffineTransform< TScalarType, NDimensions >
     bool invertible = this->GetInverse(partialTransform);
     if (!invertible)
       {
-      itkWarningMacro("This LocalAffineTransform is not invertible.");
+      itkExceptionMacro("This LocalAffineTransform is not invertible.");
       }
     }
   else
@@ -380,7 +381,17 @@ void
 LocalAffineTransform< TScalarType, NDimensions >
 ::WarpFixedMaskIntoPointSet(int timeStamp)
 {
-  AffineTransformPointer forwardTransform = this->GetPartialTransform(0, timeStamp);
+  AffineTransformPointer forwardTransform;
+  if (timeStamp != 0)
+    {
+    forwardTransform = this->GetPartialTransform(0, timeStamp);
+    }
+  else
+    {
+    //it doesn't require m_TimeStampMax to be set at the beginning
+    forwardTransform = AffineTransformType::New();
+    forwardTransform->SetIdentity();
+    }
 
   this->WarpMaskIntoPointSet(this->m_SamplePointSet,
     this->m_FixedMaskImage, forwardTransform);
@@ -392,7 +403,21 @@ void
 LocalAffineTransform< TScalarType, NDimensions >
 ::WarpMovingMaskIntoPointSet(int timeStamp)
 {
-  AffineTransformPointer backwardTransform = this->GetPartialTransform(this->m_TimeStampMax, timeStamp);
+  AffineTransformPointer backwardTransform;
+  if (timeStamp != 0)
+    {
+    backwardTransform = this->GetPartialTransform(this->m_TimeStampMax, timeStamp);
+    }
+  else
+    {
+    //it doesn't require m_TimeStampMax to be set at the beginning
+    backwardTransform = AffineTransformType::New();
+    bool invertible = this->GetInverse(backwardTransform);
+    if (!invertible)
+      {
+      itkExceptionMacro("This LocalAffineTransform is not invertible.");
+      }
+    }
 
   this->WarpMaskIntoPointSet(this->m_SamplePointSet,
     this->m_MovingMaskImage, backwardTransform);

@@ -303,6 +303,9 @@ public:
   /** Return an inverse of this transform. */
   virtual InverseTransformBasePointer GetInverseTransform() const;
 
+  itkSetMacro(TimeStampAutomaticFlag, bool);
+  itkGetMacro(TimeStampAutomaticFlag, bool);
+
   itkSetMacro(PadTrajectory, int);
   itkGetMacro(PadTrajectory, int);
   
@@ -332,6 +335,11 @@ public:
     //m_TimeStampMax is the number of time stamps
     this->m_TimeStampMax = 1 << timeStampLog;
   }
+
+  itkGetMacro(TimeStampLog, int);
+  itkGetMacro(TimeStampMax, int);
+
+  void UpdateTimeStampIfAutomatic();
 
   /** Translate the time stamp to a nonegative number to be stored
    *  in a trajectory image. The trajectory background uses 0.
@@ -481,6 +489,10 @@ private:
   PolyAffineTransform(const Self & other);
   const Self & operator=(const Self &);
 
+  // Flag to set m_TimeStampMax and m_TimeStampLog automatically.
+  // If it is true, it will overwrite the user's given values.
+  bool                                      m_TimeStampAutomaticFlag;
+
   // m_TimeStampLog is the logarithm of the number of time stamps
   int                                       m_TimeStampLog;
 
@@ -530,9 +542,11 @@ private:
   // Distance map to the combined trajectory
   DistanceMapImagePointer                   m_CombinedTrajectoryDistanceMapImage;
 
+  // Timers for different methods
   itk::TimeProbe                            m_TimerTrajectory;
   itk::TimeProbe                            m_TimerDistanceMap;
   itk::TimeProbe                            m_TimerExponentialMapping;
+  itk::TimeProbe                            m_TimerDisplacementFieldComposing;
   itk::TimeProbe                            m_TimerComputeDisplacementField;
 
 }; //class PolyAffineTransform
