@@ -19,12 +19,13 @@
 #define __itkPolyAffineTransform_h
 
 #include <iostream>
+
 #include "itkDisplacementFieldTransform.h"
 #include "itkSignedMaurerDistanceMapImageFilter.h"
-#include "itkNearestNeighborInterpolateImageFunction.h"
 #include "itkExponentialDisplacementFieldImageFilter.h"
 #include "itkComposeDisplacementFieldsImageFilter.h"
 #include "itkNeighborhoodAlgorithm.h"
+#include "itkTimeProbe.h"
 
 #include "itkLocalAffineTransform.h"
 #include "itkPicslImageHelper.h"
@@ -445,7 +446,7 @@ public:
    *  (1) It initializes the trajectories of local transforms.
    *  (2) It will compute the velocity sum for each segment of time
    *  during which there is no trajectory overlap. 
-   *  (3) It computes the expontial mapping to get a displacement field
+   *  (3) It computes the exponential mapping to get a displacement field
    *  during that time segment.
    *  (4) It computes the composition of these displacement fields at
    *  mutiple tiem segments.
@@ -455,6 +456,9 @@ public:
   /** Get the displacement field of this PolyAffineTransform.
    */
   virtual DisplacementFieldType* GetDisplacementField();
+
+  /** Print the timers. */   
+  void PrintTimers();
 
 protected:
   /** Construct an PolyAffineTransform object
@@ -525,6 +529,11 @@ private:
   DistanceMapImageVectorType                m_TrajectoryDistanceMapImageVector;
   // Distance map to the combined trajectory
   DistanceMapImagePointer                   m_CombinedTrajectoryDistanceMapImage;
+
+  itk::TimeProbe                            m_TimerTrajectory;
+  itk::TimeProbe                            m_TimerDistanceMap;
+  itk::TimeProbe                            m_TimerExponentialMapping;
+  itk::TimeProbe                            m_TimerComputeDisplacementField;
 
 }; //class PolyAffineTransform
 }  // namespace itk

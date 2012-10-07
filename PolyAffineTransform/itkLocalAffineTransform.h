@@ -27,6 +27,7 @@
 #include "itkBinaryDilateImageFilter.h"
 #include "itkBinaryBallStructuringElement.h"
 #include "itkPicslImageHelper.h"
+#include "itkTimeProbe.h"
 
 namespace itk
 {
@@ -146,6 +147,12 @@ public:
 
   itkSetMacro(OverlapPointId, unsigned int);
   itkGetMacro(OverlapPointId, unsigned int);
+
+  /** Methods to get timers */
+  itkGetConstReferenceMacro(TimerComputeFixedMaskImage,  TimeProbe);
+  itkGetConstReferenceMacro(TimerComputeMovingMaskImage, TimeProbe);
+  itkGetConstReferenceMacro(TimerMatrixExponential,      TimeProbe);
+  itkGetConstReferenceMacro(TimerMatrixLogarithm,        TimeProbe);
 
   /** Compute the fixed mask image from a Spatial Object.  */
   template< class TSpatialObject > 
@@ -269,6 +276,11 @@ private:
 
   MaskImagePointer m_FixedMaskImage;
   MaskImagePointer m_MovingMaskImage;
+
+  itk::TimeProbe            m_TimerComputeFixedMaskImage;
+  itk::TimeProbe            m_TimerComputeMovingMaskImage;
+  itk::TimeProbe            m_TimerMatrixExponential;
+  itk::TimeProbe            m_TimerMatrixLogarithm;
 
 }; //class LocalAffineTransform
 

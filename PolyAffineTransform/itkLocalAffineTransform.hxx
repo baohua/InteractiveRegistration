@@ -75,7 +75,9 @@ LocalAffineTransform< TScalarType, NDimensions >::ComputeLogarithmMatrix(
   vnl_matrix<TScalarType> homoMat(NDimensions+1, NDimensions+1);
   this->GetHomogeneousMatrix(homoMat, affineTransform);
 
+  this->m_TimerMatrixLogarithm.Start();
   vnl_matrix<TScalarType> logMat = sdtools::GetLogarithm(homoMat);
+  this->m_TimerMatrixLogarithm.Stop();
 
   return logMat;
 }
@@ -88,7 +90,10 @@ LocalAffineTransform< TScalarType, NDimensions >::ComputeExponentialTransform(
 {
   AffineTransformPointer expAffine = AffineTransformType::New();
 
+  this->m_TimerMatrixExponential.Start();
   vnl_matrix<TScalarType> expMat = sdtools::GetExponential(velocity);
+  this->m_TimerMatrixExponential.Start();
+
   this->SetHomogeneousTransform(expAffine, expMat);
 
   return expAffine;
@@ -157,6 +162,11 @@ void
 LocalAffineTransform< TScalarType, NDimensions >
 ::UpdatePartialVelocityMatrix()
 {
+  if (this->m_TimeStampMax == 0)
+    {
+    itkExceptionMacro("LocalAffineTransform::m_TimeStampMax must be set before UpdatePartialVelocityMatrix is called.");
+    return;
+    }
   double timePeriod = (double)(m_StopTime - m_StartTime) / m_TimeStampMax;
   this->m_PartialVelocityMatrix = this->GetVelocityMatrix();
   this->m_PartialVelocityMatrix *= timePeriod;
@@ -199,6 +209,8 @@ void
 LocalAffineTransform< TScalarType, NDimensions >
 ::ComputeFixedMaskImageFromSpatialObject(TSpatialObject *spatialObject, SizeType size)
 {
+  this->m_TimerComputeFixedMaskImage.Start();
+
   typedef itk::SpatialObjectToImageFilter<TSpatialObject,MaskImageType> SpatialObjectToImageFilterType;
   typename SpatialObjectToImageFilterType::Pointer imageFilter = SpatialObjectToImageFilterType::New();
   imageFilter->SetInput(spatialObject);
@@ -207,6 +219,8 @@ LocalAffineTransform< TScalarType, NDimensions >
   imageFilter->SetSize(size);
   imageFilter->Update();
   this->m_FixedMaskImage = imageFilter->GetOutput();   
+
+  this->m_TimerComputeFixedMaskImage.Stop();
 }
 
 template< class TScalarType, unsigned int NDimensions >
@@ -219,6 +233,8 @@ LocalAffineTransform< TScalarType, NDimensions >
                                 SpacingType spacing,
                                 SizeType size)
 {
+  this->m_TimerComputeFixedMaskImage.Start();
+
   typedef itk::SpatialObjectToImageFilter<TSpatialObject,MaskImageType> SpatialObjectToImageFilterType;
   typename SpatialObjectToImageFilterType::Pointer imageFilter = SpatialObjectToImageFilterType::New();
   imageFilter->SetInput(spatialObject);
@@ -232,6 +248,8 @@ LocalAffineTransform< TScalarType, NDimensions >
 
   imageFilter->Update();
   this->m_FixedMaskImage = imageFilter->GetOutput();
+
+  this->m_TimerComputeFixedMaskImage.Stop();
 }
 
 template< class TScalarType, unsigned int NDimensions >
@@ -269,6 +287,11 @@ typename LocalAffineTransform< TScalarType, NDimensions >::AffineTransformPointe
 LocalAffineTransform< TScalarType, NDimensions >
 ::GetPartialTransform(int startTime, int stopTime)
 {
+  if (this->m_TimeStampMax == 0)
+    {
+    itkExceptionMacro("LocalAffineTransform::m_TimeStampMax must be set before GetPartialTransform is called.");
+    return NULL;
+    }
   AffineTransformPointer partialTransform = AffineTransformType::New();
   int duration = stopTime - startTime;
   if (duration == 0)
@@ -380,11 +403,6 @@ void
 LocalAffineTransform< TScalarType, NDimensions >
 ::ComputeSamplePointSet(int timeStamp)
 {
-  if (this->m_TimeStampMax == 0)
-    {
-    itkWarningMacro("LocalAffineTransform::m_TimeStampMax must be set before ComputeSamplePointSet is called.");
-    return;
-    }
   //fill m_SamplePointSet with points
   this->m_SamplePointSet = PointSetType::New();
   this->WarpFixedMaskIntoPointSet(timeStamp);
@@ -400,6 +418,8 @@ void
 LocalAffineTransform< TScalarType, NDimensions >
 ::ComputeMovingMaskImage()
 {
+  this->m_TimerComputeMovingMaskImage.Start();
+
   ContinuousIndexType mappedCorner, minIndex, maxIndex;
 
   //compute minIndex and maxIndex of the warped mask
@@ -444,7 +464,8 @@ LocalAffineTransform< TScalarType, NDimensions >
   bool insideImage, invertible = this->GetInverse(inverse);
   if (!invertible)
     {
-    itkWarningMacro("This LocalAffineTransform is not invertible.");
+    this->m_TimerComputeMovingMaskImage.Stop();
+    itkExceptionMacro("This LocalAffineTransform is not invertible.");
     return;
     }
 
@@ -493,6 +514,8 @@ LocalAffineTransform< TScalarType, NDimensions >
   filter->Update();
 
   this->m_MovingMaskImage = filter->GetOutput();
+
+  this->m_TimerComputeMovingMaskImage.Stop();
 }
 
 /** Print self */

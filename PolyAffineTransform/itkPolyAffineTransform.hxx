@@ -569,6 +569,8 @@ void
 PolyAffineTransform< TScalarType, NDimensions >
 ::ComputeNextStepTrajectory(unsigned int transformId)
 {
+  this->m_TimerTrajectory.Start();
+
   bool overlap = false;
   unsigned int overlapPointId = 0;
   LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[transformId];
@@ -576,6 +578,7 @@ PolyAffineTransform< TScalarType, NDimensions >
   int timeStamp = trans->GetStopTime();
   if (timeStamp >= trans->GetTimeStampMax())
     {
+    this->m_TimerTrajectory.Stop();
     return;
     }
 
@@ -617,6 +620,8 @@ PolyAffineTransform< TScalarType, NDimensions >
 
   trans->SetOverlapped(overlap);
   trans->SetOverlapPointId(overlapPointId);
+
+  this->m_TimerTrajectory.Stop();
 }
 
 template< class TScalarType,
@@ -651,6 +656,8 @@ typename PolyAffineTransform< TScalarType, NDimensions >::DistanceMapImagePointe
 PolyAffineTransform< TScalarType, NDimensions >
 ::ComputeTrajectoryDistanceMapImage(TrajectoryImagePointer traj)
 {
+  this->m_TimerDistanceMap.Start();
+
   typedef itk::SignedMaurerDistanceMapImageFilter
     <TrajectoryImageType, DistanceMapImageType>                DistanceMapImageFilterType;
   typedef typename DistanceMapImageFilterType::Pointer         DistanceMapImageFilterPointer;
@@ -664,6 +671,9 @@ PolyAffineTransform< TScalarType, NDimensions >
   filter->Update();
 
   DistanceMapImagePointer output = filter->GetOutput();
+
+  this->m_TimerDistanceMap.Stop();
+
   return output;
 }
 
@@ -999,6 +1009,7 @@ PolyAffineTransform< TScalarType, NDimensions >
     {
     this->m_TrajectoryDistanceMapImageVector[t] = this->ComputeTrajectoryDistanceMapImage(
       this->m_TrajectoryImageVector[t]);
+
     PicslImageHelper::WriteImage<DistanceMapImageType>
       (this->m_TrajectoryDistanceMapImageVector[t], "tmpTrajDistance.nii", 
       (t+1)*10000 + this->m_LocalAffineTransformVector[t]->GetStopTime());
@@ -1054,6 +1065,9 @@ PolyAffineTransform< TScalarType, NDimensions >
     {
     this->ComputeDisplacementField();
     }
+  
+  this->PrintTimers();
+
   return this->m_DisplacementField;
 }
 
@@ -1072,6 +1086,8 @@ void
 PolyAffineTransform< TScalarType, NDimensions >
 ::ComputeDisplacementField()
 {
+  this->m_TimerComputeDisplacementField.Start();
+
   this->InitializeBuffers();
 
   typedef typename DisplacementFieldType::PixelType VectorType;
@@ -1124,21 +1140,67 @@ PolyAffineTransform< TScalarType, NDimensions >
     this->m_DisplacementField = composer->GetOutput();
     this->m_DisplacementField->DisconnectPipeline();
     }
+
+  this->m_TimerComputeDisplacementField.Stop();
 }
 
+template< class TScalarType,
+          unsigned int NDimensions >
+void
+PolyAffineTransform< TScalarType, NDimensions >
+::PrintTimers()
+{
+  double totalTimerComputeFixedMaskImage = 0;
+  double totalTimerComputeMovingMaskImage = 0;
+  double totalTimerMatrixExponential = 0;
+  double totalTimerMatrixLogarithm = 0;
+
+  for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
+    {
+    LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[t];
+    totalTimerComputeFixedMaskImage += trans->GetTimerComputeFixedMaskImage().GetTotal();
+    totalTimerComputeMovingMaskImage += trans->GetTimerComputeMovingMaskImage().GetTotal();
+    totalTimerMatrixExponential += trans->GetTimerMatrixExponential().GetTotal();
+    totalTimerMatrixLogarithm += trans->GetTimerMatrixLogarithm().GetTotal();
+    }
+  std::cout << "totalTimerComputeFixedMaskImage = " 
+    << totalTimerComputeFixedMaskImage << " seconds" << std::endl;
+  std::cout << "totalTimerComputeMovingMaskImage = " 
+    << totalTimerComputeMovingMaskImage << " seconds" << std::endl;
+
+  std::cout << "totalTimerMatrixExponential = " 
+    << totalTimerMatrixExponential << " seconds" << std::endl;
+  std::cout << "totalTimerMatrixLogarithm = " 
+    << totalTimerMatrixLogarithm << " seconds" << std::endl;
+
+  std::cout << "m_TimerTrajectory.GetTotal() = " 
+    << m_TimerTrajectory.GetTotal() << " seconds" << std::endl;
+  std::cout << "m_TimerDistanceMap.GetTotal() = " 
+    << m_TimerDistanceMap.GetTotal() << " seconds" << std::endl;
+
+  std::cout << "m_TimerExponentialMapping.GetTotal() = " 
+    << m_TimerExponentialMapping.GetTotal() << " seconds" << std::endl;
+  std::cout << "m_TimerComputeDisplacementField.GetTotal() = " 
+    << m_TimerComputeDisplacementField.GetTotal() << " seconds" << std::endl;
+  
+}
 template< class TScalarType,
           unsigned int NDimensions >
 typename PolyAffineTransform< TScalarType, NDimensions >::DisplacementFieldPointer
 PolyAffineTransform< TScalarType, NDimensions >
 ::ComputeExponentialDisplacementField(const DisplacementFieldPointer &velocityField)
 {
+  this->m_TimerExponentialMapping.Start();
+
   ExponentialImageFilterPointer filter = ExponentialImageFilterType::New();
   filter->SetInput(velocityField);
 
   filter->SetAutomaticNumberOfIterations(true);
   filter->Update();
-
   DisplacementFieldPointer exponentialField = filter->GetOutput();
+  
+  this->m_TimerExponentialMapping.Stop();
+
   return exponentialField;
 }
 
