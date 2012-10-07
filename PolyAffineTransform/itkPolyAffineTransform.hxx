@@ -36,11 +36,12 @@ PolyAffineTransform< TScalarType, NDimensions >
 {
   this->SetTimeStampLog(8); //by default 2^8 time stamps
 
-  this->m_PadBoundary = 8;
+  this->m_PadBoundary = 40;
   this->m_PadTrajectory = 2;
 
   this->m_DecayRateOfBoundary = 1*1;
   this->m_DecayRateOfTrajectory = 3*3;
+  this->m_StopAllTrajectoriesAtOverlap = false;
 }
 
 // Destructor
@@ -597,8 +598,6 @@ PolyAffineTransform< TScalarType, NDimensions >
 
   timeStamp++;
   trans->SetStopTime(timeStamp);
-  if (timeStamp == 200)
-    bool debug=true;
 
   typedef typename LocalAffineTransformType::AffineTransformPointer AffineTransformPointer;
   AffineTransformPointer partialTrans = trans->GetPartialTransform(0, timeStamp);
@@ -627,6 +626,7 @@ PolyAffineTransform< TScalarType, NDimensions >
         if (overlap)
           {
             overlapPointId = f; //not used now, may be used later
+            break;
           }
         }
       } //if insideImage
@@ -644,7 +644,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 {
   TrajectoryImagePointer trajOther;
   bool exist = false;
-  
+
   for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
     {
     if (t == transformId)
@@ -726,9 +726,9 @@ PolyAffineTransform< TScalarType, NDimensions >
     trans->ComputeSamplePointSet(0);
 
     PicslImageHelper::WriteImage<MaskImageType>(
-      trans->GetFixedMaskImage(), "tmpFixedMask.nii", (int)t);
+      trans->GetFixedMaskImage(), "tmpFixedMask.nii", (int)(t+1));
     PicslImageHelper::WriteImage<MaskImageType>(
-      trans->GetMovingMaskImage(), "tmpMovingMask.nii", (int)t);
+      trans->GetMovingMaskImage(), "tmpMovingMask.nii", (int)(t+1));
     }
 
   //Initialize BoundaryMask and its WeightImage
@@ -798,7 +798,8 @@ PolyAffineTransform< TScalarType, NDimensions >
         ownerTraj = t;
         }
       }
-
+    if (index[0]==151-81 && index[1]==191-91)
+      int debug=1;
     if (ownerTraj >= 0) //the point is inside a trajectory ownerTraj
       {
       LocalAffineTransformPointer localAffine = this->m_LocalAffineTransformVector[ownerTraj];
@@ -873,17 +874,29 @@ template< class TScalarType,
           unsigned int NDimensions >
 int
 PolyAffineTransform< TScalarType, NDimensions >
-::GetMinStopTime()
+::GetMinStopTime(char *debugInfo)
 {
   int minStopTime = NumericTraits<int>::max();
   int stopTime;
+  if (debugInfo)
+    {
+    std::cout << "GetMinStopTime: " << debugInfo;
+    }
   for (unsigned int t = 0; t < this->GetNumberOfLocalAffineTransforms(); t++)
     {
     stopTime = this->m_LocalAffineTransformVector[t]->GetStopTime();
+    if (debugInfo)
+      {
+      std::cout << " " << stopTime;
+      }
     if (minStopTime > stopTime)
       {
       minStopTime = stopTime;
       }
+    }
+  if (debugInfo)
+    {
+    std::cout << std::endl;
     }
   return minStopTime;
 }
@@ -899,16 +912,21 @@ PolyAffineTransform< TScalarType, NDimensions >
     this->m_LocalAffineTransformVector[t]->SetOverlapped(false);
     }
 
-  while (this->GetMinStopTime() < this->m_TimeStampMax)
+  bool stopNow = false;
+  while (!stopNow && this->GetMinStopTime("BeforeOverlap") < this->m_TimeStampMax)
     {
     bool moved = false;
-    for (unsigned int t = 0; t < this->GetNumberOfLocalAffineTransforms(); t++)
+    for (unsigned int t = 0; !stopNow && t < this->GetNumberOfLocalAffineTransforms(); t++)
       {
       LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[t];
       if (!trans->GetOverlapped() && trans->GetStopTime() < this->m_TimeStampMax)
         {
         this->ComputeNextStepTrajectory(t);
         moved = true;
+        }
+      if (trans->GetOverlapped() && this->m_StopAllTrajectoriesAtOverlap)
+        {
+        stopNow = true;
         }
       }
     if (!moved)
@@ -924,7 +942,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 
     PicslImageHelper::WriteImage<TrajectoryImageType>
       (this->m_TrajectoryImageVector[t], "tmpTraj.nii", 
-        t*10000 + trans->GetStopTime());
+        (t+1)*10000 + trans->GetStopTime());
 
     if (trans->GetOverlapped()) //rewind trajectory
       {
@@ -933,7 +951,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 
       PicslImageHelper::WriteImage<TrajectoryImageType>
         (this->m_TrajectoryImageVector[t], "tmpTrajRewind.nii", 
-        t*10000+rewindTime);
+        (t+1)*10000+rewindTime);
       }
     }
 
@@ -943,7 +961,7 @@ PolyAffineTransform< TScalarType, NDimensions >
       this->m_TrajectoryImageVector[t]);
     PicslImageHelper::WriteImage<DistanceMapImageType>
       (this->m_TrajectoryDistanceMapImageVector[t], "tmpTrajWeight.nii", 
-      t*10000 + this->m_LocalAffineTransformVector[t]->GetStopTime());
+      (t+1)*10000 + this->m_LocalAffineTransformVector[t]->GetStopTime());
     }
 
   this->CombineTrajectories();
@@ -1013,9 +1031,10 @@ PolyAffineTransform< TScalarType, NDimensions >
     {
     this->m_LocalAffineTransformVector[t]->SetStopTime(0);
     this->m_LocalAffineTransformVector[t]->SetTimeStampMax(this->m_TimeStampMax);
+    this->m_LocalAffineTransformVector[t]->DilateFixedMaskImage(this->m_PadTrajectory);
     }
 
-  while (this->GetMinStopTime() < this->m_TimeStampMax)
+  while (this->GetMinStopTime("MainLoop") < this->m_TimeStampMax)
     {
     for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
       {
@@ -1027,7 +1046,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 
       // For each local transform, its trajectory is during [ m_StartTime, m_StopTime ].
       // at the beginning, each trajectory is empty and m_StopTime = m_StartTime - 1.
-      trans->SetStopTime(trans->GetStartTime() - 1);
+      trans->SetStopTime(DonePreviously - 1);
 
       this->InitializeTrajectory(this->m_TrajectoryImageVector[t]);
       }
@@ -1039,6 +1058,8 @@ PolyAffineTransform< TScalarType, NDimensions >
     DisplacementFieldPointer exponentialField =
       this->ComputeExponentialDisplacementField(this->m_VelocityField);
 
+    PicslImageHelper::WriteImage<DisplacementFieldType>
+      (this->m_VelocityField, "tmpVelocitySum.nii", this->GetMinStopTime());
     PicslImageHelper::WriteDisplacementField<DisplacementFieldType>
       (this->m_VelocityField, "tmpVelocitySum.nii", this->GetMinStopTime());
     PicslImageHelper::WriteDisplacementField<DisplacementFieldType>

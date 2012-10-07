@@ -302,6 +302,21 @@ public:
   /** Return an inverse of this transform. */
   virtual InverseTransformBasePointer GetInverseTransform() const;
 
+  itkSetMacro(PadTrajectory, int);
+  itkGetMacro(PadTrajectory, int);
+  
+  itkSetMacro(PadBoundary, int);
+  itkGetMacro(PadBoundary, int);
+
+  itkSetMacro(StopAllTrajectoriesAtOverlap, bool);
+  itkGetMacro(StopAllTrajectoriesAtOverlap, bool);
+
+  itkSetMacro(DecayRateOfBoundary, double);
+  itkGetMacro(DecayRateOfBoundary, double);
+
+  itkSetMacro(DecayRateOfTrajectory, double);
+  itkGetMacro(DecayRateOfTrajectory, double);
+
   void AddLocalAffineTransform( LocalAffineTransformType *t  )
   {
     LocalAffineTransformPointer tp = t;
@@ -334,7 +349,7 @@ public:
 
   bool InitializeBuffers();
   void InitializeBoundaryMask();
-  int GetMinStopTime();
+  int GetMinStopTime(char *debugInfo = NULL);
 
   void InitializeTrajectory(TrajectoryImagePointer &traj);
   void RewindTrajectory(unsigned int transformId, int stopTime);
@@ -395,16 +410,21 @@ private:
   TrajectoryImageVectorType                 m_TrajectoryImageVector;
   
   TrajectoryImagePointer                    m_CombinedTrajectoryImage;
-  DistanceMapImagePointer                        m_CombinedTrajectoryWeightImage;
+  DistanceMapImagePointer                   m_CombinedTrajectoryWeightImage;
 
-  DistanceMapImageVectorType                     m_TrajectoryDistanceMapImageVector;
-  DistanceMapImagePointer                        m_BoundaryWeightImage;
+  DistanceMapImageVectorType                m_TrajectoryDistanceMapImageVector;
+  DistanceMapImagePointer                   m_BoundaryWeightImage;
 
+  //pad to image boundary
   int                                       m_PadBoundary;
+  //radius to dilate the trajectory
   int                                       m_PadTrajectory;
+  //when it is set, stop all trajectories at overlap
+  bool                                      m_StopAllTrajectoriesAtOverlap;
 
-  //for exponential decay rates
+  //for exponential decay rate of boundary distance
   double                                    m_DecayRateOfBoundary;
+  //for exponential decay rate of trajectory distance
   double                                    m_DecayRateOfTrajectory;
 
 }; //class PolyAffineTransform

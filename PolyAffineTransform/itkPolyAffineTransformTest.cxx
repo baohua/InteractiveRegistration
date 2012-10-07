@@ -93,11 +93,14 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   //double offset1[] = {50.0, 10.0, 50.0};
   //double offset2[] = {10.0, 50.0, 50.0};
   //crossing below
-  double offset1[] = {60.0, 20.0, 50.0};
-  double offset2[] = {20.0, 60.0, 50.0};
+  //double offset1[] = {60.0, 20.0, 50.0};
+  //double offset2[] = {20.0, 60.0, 50.0};
   //overlapping below
   //double offset1[] = {10.0, 100.0, 50.0};
   //double offset2[] = {100.0, 100.0, 50.0};
+  //from alex below
+  double offset1[] = {80-60.0, 30-10.0, 50.0};
+  double offset2[] = {80+40.0, 30-10.0, 50.0};
   for (unsigned int d=0; d<Dimension; d++)
     {
     boxOffset1[d] = offset1[d];
@@ -122,11 +125,14 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   //double translation1[] = {50, 0, 30};
   //double translation2[] = {0, 50, 30};
   //crossing below
-  double translation1[] = {0, 80, 30};
-  double translation2[] = {80, 0, 30};
+  //double translation1[] = {0, 80, 30};
+  //double translation2[] = {80, 0, 30};
   //overlapping below
   //double translation1[] = {100, 0, 30};
   //double translation2[] = {0, -80, 30};
+  //from alex below
+  double translation1[] = {100, 0, 30};
+  double translation2[] = {0, 50, 30};
   for (unsigned int d=0; d<Dimension; d++)
     { 
     affineOffset1[d] = translation1[d];

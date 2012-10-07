@@ -230,6 +230,33 @@ LocalAffineTransform< TScalarType, NDimensions >
 }
 
 template< class TScalarType, unsigned int NDimensions >
+void
+LocalAffineTransform< TScalarType, NDimensions >
+::DilateFixedMaskImage(unsigned int radius)
+  {
+  typedef itk::BinaryBallStructuringElement<MaskImageType::PixelType,
+    NDimensions> StructuringElementType;
+
+  StructuringElementType structuringElement;
+  structuringElement.SetRadius(radius);
+  structuringElement.CreateStructuringElement();
+ 
+  typedef itk::BinaryDilateImageFilter<MaskImageType, MaskImageType, 
+    StructuringElementType> BinaryDilateImageFilterType;
+ 
+  BinaryDilateImageFilterType::Pointer dilateFilter
+          = BinaryDilateImageFilterType::New();
+  dilateFilter->SetInput(this->m_FixedMaskImage);
+  dilateFilter->SetKernel(structuringElement);
+ 
+  dilateFilter->Update();
+
+  MaskImagePointer dilatedImage = dilateFilter->GetOutput();
+  dilatedImage->DisconnectPipeline();
+  this->m_FixedMaskImage = dilatedImage;
+  }
+
+template< class TScalarType, unsigned int NDimensions >
 typename LocalAffineTransform< TScalarType, NDimensions >::AffineTransformPointer 
 LocalAffineTransform< TScalarType, NDimensions >
 ::GetPartialTransform(int startTime, int stopTime)

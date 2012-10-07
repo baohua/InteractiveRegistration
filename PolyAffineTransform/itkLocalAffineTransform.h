@@ -24,6 +24,8 @@
 #include "itkAffineTransform.h"
 #include "itkSpatialObjectToImageFilter.h"
 #include "itkExtractImageFilter.h"
+#include "itkBinaryDilateImageFilter.h"
+#include "itkBinaryBallStructuringElement.h"
 #include "itkPicslImageHelper.h"
 
 namespace itk
@@ -154,6 +156,7 @@ public:
                                 DirectionType direction,
                                 SpacingType spacing,
                                 SizeType size);
+  void DilateFixedMaskImage(unsigned int radius);
 
   void ComputeMovingMaskImage();
   void ComputeSamplePointSet(int timeStamp);
