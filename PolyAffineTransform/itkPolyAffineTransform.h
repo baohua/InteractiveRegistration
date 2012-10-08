@@ -549,6 +549,10 @@ private:
   itk::TimeProbe                            m_TimerDisplacementFieldComposing;
   itk::TimeProbe                            m_TimerComputeDisplacementField;
 
+  itk::TimeProbe                            m_TimerComputeVelocityFieldBeforeOverlap;
+  itk::TimeProbe                            m_TimerInitializeBuffers;
+  itk::TimeProbe                            m_TimerInitializeIteration;
+
 }; //class PolyAffineTransform
 }  // namespace itk
 

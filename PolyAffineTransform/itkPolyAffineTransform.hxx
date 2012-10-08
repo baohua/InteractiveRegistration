@@ -726,9 +726,12 @@ bool
 PolyAffineTransform< TScalarType, NDimensions >
 ::InitializeBuffers()
 {
+  m_TimerInitializeBuffers.Start();
+
   if (this->GetNumberOfLocalAffineTransforms() == 0)
     {
-    itkWarningMacro(
+    m_TimerInitializeBuffers.Stop();
+    itkExceptionMacro(
       << "The number of local affine transforms is zero." );
     return false;
     }
@@ -789,12 +792,17 @@ PolyAffineTransform< TScalarType, NDimensions >
   this->m_DisplacementField->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
   this->m_DisplacementField->Allocate();
 
+  typedef typename DisplacementFieldType::PixelType VectorType;
+  VectorType disp(0.0);
+  this->m_DisplacementField->FillBuffer(disp); //identity transform
+
   //Initialize the sum of velocity field
   this->m_VelocityField = DisplacementFieldType::New();
   this->m_VelocityField->CopyInformation(this->m_BoundaryMask);
   this->m_VelocityField->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
   this->m_VelocityField->Allocate();
 
+  m_TimerInitializeBuffers.Stop();
   return true;
 }
 
@@ -965,6 +973,7 @@ void
 PolyAffineTransform< TScalarType, NDimensions >
 ::ComputeVelocityFieldBeforeOverlap()
 {
+  m_TimerComputeVelocityFieldBeforeOverlap.Start();
   for (unsigned int t = 0; t < this->GetNumberOfLocalAffineTransforms(); t++)
     {
     this->m_LocalAffineTransformVector[t]->SetOverlapped(false);
@@ -1033,6 +1042,8 @@ PolyAffineTransform< TScalarType, NDimensions >
         (this->m_CombinedTrajectoryDistanceMapImage, "tmpTrajCombDistance.nii", this->GetMinStopTime());
 
   this->ComputeWeightedSumOfVelocityFields();
+
+  m_TimerComputeVelocityFieldBeforeOverlap.Stop();
 }
 
 template< class TScalarType,
@@ -1098,10 +1109,6 @@ PolyAffineTransform< TScalarType, NDimensions >
 
   this->InitializeBuffers();
 
-  typedef typename DisplacementFieldType::PixelType VectorType;
-  VectorType disp(0.0);
-  this->m_DisplacementField->FillBuffer(disp); //identity transform
-
   for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
     {
     this->m_LocalAffineTransformVector[t]->SetStopTime(0);
@@ -1110,6 +1117,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 
   while (this->GetMinStopTime("MainLoop") < this->m_TimeStampMax)
     {
+    m_TimerInitializeIteration.Start();
     for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
       {
       LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[t];
@@ -1124,6 +1132,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 
       this->m_TrajectoryImageVector[t]->FillBuffer(0);
       }
+    m_TimerInitializeIteration.Stop();
 
     //Compute the velocity field before overlap. It computes the trajectories,
     //related weights, and weighted sum of velocities.
@@ -1227,6 +1236,7 @@ PolyAffineTransform< TScalarType, NDimensions >
   std::cout << "totalTimerMatrixLogarithm = " 
     << totalTimerMatrixLogarithm << " seconds" << std::endl;
 
+  std::cout << std::endl;
   std::cout << "m_TimerTrajectory.GetTotal() = " 
     << m_TimerTrajectory.GetTotal() << " seconds" << std::endl;
   std::cout << "m_TimerDistanceMap.GetTotal() = " 
@@ -1237,6 +1247,15 @@ PolyAffineTransform< TScalarType, NDimensions >
   std::cout << "m_TimerDisplacementFieldComposing.GetTotal() = " 
     << m_TimerDisplacementFieldComposing.GetTotal() << " seconds" << std::endl;
 
+  std::cout << std::endl;
+  std::cout << "m_TimerComputeVelocityFieldBeforeOverlap.GetTotal() = " 
+    << m_TimerComputeVelocityFieldBeforeOverlap.GetTotal() << " seconds" << std::endl;
+  std::cout << "m_TimerInitializeBuffers.GetTotal() = " 
+    << m_TimerInitializeBuffers.GetTotal() << " seconds" << std::endl;
+  std::cout << "m_TimerInitializeIteration.GetTotal() = " 
+    << m_TimerInitializeIteration.GetTotal() << " seconds" << std::endl;
+
+  std::cout << std::endl;
   std::cout << "m_TimerComputeDisplacementField.GetTotal() = " 
     << m_TimerComputeDisplacementField.GetTotal() << " seconds" << std::endl;
   
