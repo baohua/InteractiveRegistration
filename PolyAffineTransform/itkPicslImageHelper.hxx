@@ -86,7 +86,7 @@ PicslImageHelper
     }
   if (strlen(m_FilePath) == 0)
     {
-    sprintf(fullFileName, "%s%s", m_FilePath, fname);
+    sprintf(fullFileName, "%s", fname);
     }
   else
     {

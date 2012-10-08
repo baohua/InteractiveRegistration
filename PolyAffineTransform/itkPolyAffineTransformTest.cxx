@@ -32,38 +32,25 @@
 
 using namespace itk;
 
+template <unsigned int Dimension>
 int itkPolyAffineTransformTest(int argc, char *argv[])
 {
-  if( argc < 2 )
+  char *fileName = argv[2];
+
+  PicslImageHelper::m_FilePath[0] = '\0';
+  if (argc >= 4)
     {
-    std::cerr << "Missing Parameters " << std::endl;
-    std::cerr << "Usage: " << argv[0];
-    std::cerr << " OutputDisplacementFieldFile " << std::endl;
-    std::cerr << "Usage: " << argv[0];
-    std::cerr << " OutputDirectory/OutputDisplacementFieldFile " << std::endl;
-    return EXIT_FAILURE;
+    strcpy(PicslImageHelper::m_FilePath, argv[3]);
     }
-  char *filePath = PicslImageHelper::m_FilePath;
-  strcpy(filePath, argv[1]);
-  char *forwardSlashPtr = strchr(filePath, '/');
-  char *backwardSlashPtr = strchr(filePath, '\\');
-  if (forwardSlashPtr) 
+
+  PicslImageHelper::m_Debug = false;
+  if (argc >= 5 && strcmp(argv[4], "true")==0)
     {
-    forwardSlashPtr[0] = '\0';
+    PicslImageHelper::m_Debug = true;
     }
-  else if (backwardSlashPtr)
-    {
-    backwardSlashPtr[0] = '\0';
-    }
-  else
-    {
-    filePath[0] = '\0';
-    }
-  char *fileName = argv[1] + strlen(filePath);
 
   //create a deformation field transform
   //typedef TranslationTransform<double, Dimension>
-  const int Dimension = 2;
 
   typedef itk::PolyAffineTransform<double, Dimension> PolyAffineTransformType;
   typedef PolyAffineTransformType::LocalAffineTransformType LocalAffineTransformType;
@@ -160,5 +147,28 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-  itkPolyAffineTransformTest(argc, argv);
+  if( argc < 3 )
+    {
+    std::cerr << "Missing Parameters " << std::endl;
+    std::cerr << "Usage: " << argv[0];
+    std::cerr << " Dimension=2|3 OutputDisplacementFieldFile [OutputDirectory] [DebugFiles=true|false]" << std::endl;
+    std::cerr << "Example: " << argv[0];
+    std::cerr << " 2 outfield.nii outdir true" << std::endl;
+    return EXIT_FAILURE;
+    }
+
+  int Dimension = atoi(argv[1]);
+  if (Dimension == 2)
+    {
+    itkPolyAffineTransformTest<2>(argc, argv);
+    }
+  else if (Dimension == 3)
+    {
+    itkPolyAffineTransformTest<3>(argc, argv);
+    }
+  else
+    {
+    std::cerr << "Dimension " << Dimension << " is not supported." << std::endl;
+    return EXIT_FAILURE;
+    }
 }
