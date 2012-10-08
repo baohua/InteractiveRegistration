@@ -781,28 +781,21 @@ PolyAffineTransform< TScalarType, NDimensions >
   this->m_TrajectoryImageVector.resize(transformNumber);
   this->m_TrajectoryDistanceMapImageVector.resize(transformNumber);
 
-  TrajectoryImagePointer traj = TrajectoryImageType::New();
-  traj->CopyInformation(this->m_BoundaryMask);
-  traj->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
-  traj->Allocate();
-  this->m_CombinedTrajectoryImage = traj;
-
+  //Allocate images for trajectories
+  this->template AllocateImageWithBoundary<TrajectoryImageType>(this->m_CombinedTrajectoryImage);
   for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
     {
-    traj = TrajectoryImageType::New();
-    traj->CopyInformation(this->m_BoundaryMask);
-    traj->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
-    traj->Allocate();
-    this->m_TrajectoryImageVector[t] = traj;
+    this->template AllocateImageWithBoundary<TrajectoryImageType>(this->m_TrajectoryImageVector[t]);
     }
   
-  this->InitializeDisplacementField();
+  //Allocate images for the total displacement field and fill it with zeros
+  this->template AllocateImageWithBoundary<DisplacementFieldType>(this->m_DisplacementField);
+  typedef typename DisplacementFieldType::PixelType VectorType;
+  VectorType disp(0.0);
+  this->m_DisplacementField->FillBuffer(disp); //identity transform
 
   //Initialize the sum of velocity field
-  this->m_VelocityField = DisplacementFieldType::New();
-  this->m_VelocityField->CopyInformation(this->m_BoundaryMask);
-  this->m_VelocityField->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
-  this->m_VelocityField->Allocate();
+  this->template AllocateImageWithBoundary<DisplacementFieldType>(this->m_VelocityField);
 
   m_TimerInitializeBuffers.Stop();
   return true;
@@ -810,23 +803,19 @@ PolyAffineTransform< TScalarType, NDimensions >
 
 template< class TScalarType,
           unsigned int NDimensions >
+template< class TImage >
 void
 PolyAffineTransform< TScalarType, NDimensions >
-::InitializeDisplacementField()
+::AllocateImageWithBoundary(typename TImage::Pointer &image)
 {
-  this->m_TimerInitializeDisplacementField.Start();
+  this->m_TimerAllocateImageWithBoundary.Start();
 
-  //Initialize the overall displacement field
-  this->m_DisplacementField = DisplacementFieldType::New();
-  this->m_DisplacementField->CopyInformation(this->m_BoundaryMask);
-  this->m_DisplacementField->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
-  this->m_DisplacementField->Allocate();
+  image = TImage::New();
+  image->CopyInformation(this->m_BoundaryMask);
+  image->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
+  image->Allocate();
 
-  typedef typename DisplacementFieldType::PixelType VectorType;
-  VectorType disp(0.0);
-  this->m_DisplacementField->FillBuffer(disp); //identity transform
-
-  this->m_TimerInitializeDisplacementField.Stop();
+  this->m_TimerAllocateImageWithBoundary.Stop();
 }
 
 template< class TScalarType,
@@ -1280,8 +1269,8 @@ PolyAffineTransform< TScalarType, NDimensions >
     << m_TimerInitializeBoundaryMask.GetTotal() << " seconds" << std::endl;
   std::cout << "m_TimerComputeBoundaryDistanceMapImage.GetTotal() = " 
     << m_TimerComputeBoundaryDistanceMapImage.GetTotal() << " seconds" << std::endl;
-  std::cout << "m_TimerInitializeDisplacementField.GetTotal() = " 
-    << m_TimerInitializeDisplacementField.GetTotal() << " seconds" << std::endl;
+  std::cout << "m_TimerAllocateImageWithBoundary.GetTotal() = " 
+    << m_TimerAllocateImageWithBoundary.GetTotal() << " seconds" << std::endl;
 
   std::cout << std::endl;
   std::cout << "m_TimerComputeNextStepTrajectory.GetTotal() = " 

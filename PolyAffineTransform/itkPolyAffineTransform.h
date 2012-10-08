@@ -380,9 +380,10 @@ public:
    */
   bool InitializeBuffers();
 
-  /** Allocate memory for DisplacementField and fill it with zeros.
+  /** Allocate memory for an image with meta information from m_BoundaryMask.
    */
-  void InitializeDisplacementField();
+  template< class TImage >
+  void AllocateImageWithBoundary(typename TImage::Pointer &image);
 
   /** Compute the boundary as the union of all moving and fixed image
    *  domains of local transforms.
@@ -557,7 +558,7 @@ private:
 
   itk::TimeProbe                            m_TimerInitializeBuffers;
   itk::TimeProbe                            m_TimerInitializeBoundaryMask;
-  itk::TimeProbe                            m_TimerInitializeDisplacementField;
+  itk::TimeProbe                            m_TimerAllocateImageWithBoundary;
 
   itk::TimeProbe                            m_TimerInitializeIteration;
   itk::TimeProbe                            m_TimerComputeVelocityFieldBeforeOverlap;
