@@ -25,10 +25,14 @@ public:
   itkNewMacro(Self);
 
   template< class TField> 
+  static void WriteResultDisplacementField(typename TField::Pointer field, char *fname);
+  template< class TField> 
   static void WriteDisplacementField(typename TField::Pointer field, char *fname);
   template< class TField>
   static void WriteDisplacementField(typename TField::Pointer field, char *fname, int id);
 
+  template< class TImage>
+  static void WriteResultImage(typename TImage::Pointer image, char *fname);
   template< class TImage>
   static void WriteImage(typename TImage::Pointer image, char *fname);
   template< class TImage>

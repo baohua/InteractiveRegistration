@@ -115,6 +115,19 @@ PicslImageHelper
 template< class TImage>
 void 
 PicslImageHelper
+::WriteResultImage(typename TImage::Pointer image, char *fname)
+{
+  bool tmpDebug = PicslImageHelper::m_Debug;
+  PicslImageHelper::m_Debug = true;
+
+  PicslImageHelper::WriteImage<TImage>(image, fname);
+
+  PicslImageHelper::m_Debug = tmpDebug;
+}
+
+template< class TImage>
+void 
+PicslImageHelper
 ::WriteImage(typename TImage::Pointer image, char *fname, int id)
 {
   char newName[256];
@@ -151,6 +164,19 @@ PicslImageHelper
     }
 
   return;
+}
+
+template< class TField>
+void 
+PicslImageHelper
+::WriteResultDisplacementField(typename TField::Pointer field, char *fname)
+{
+  bool tmpDebug = PicslImageHelper::m_Debug;
+  PicslImageHelper::m_Debug = true;
+
+  PicslImageHelper::WriteDisplacementField<TField>(field, fname);
+
+  PicslImageHelper::m_Debug = tmpDebug;
 }
 
 template< class TField>

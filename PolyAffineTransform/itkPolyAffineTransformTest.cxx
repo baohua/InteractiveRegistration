@@ -137,8 +137,8 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
 
   typename DisplacementFieldType::Pointer displacementField = polyTransform->GetDisplacementField();
 
-  PicslImageHelper::WriteImage<DisplacementFieldType>(displacementField, fileName);
-  PicslImageHelper::WriteDisplacementField<DisplacementFieldType>(displacementField, fileName);
+  PicslImageHelper::WriteResultImage<DisplacementFieldType>(displacementField, fileName);
+  PicslImageHelper::WriteResultDisplacementField<DisplacementFieldType>(displacementField, fileName);
 
   std::cout << "Test PASSED." << std::endl;
 
