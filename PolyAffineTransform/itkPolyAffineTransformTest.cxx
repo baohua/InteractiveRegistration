@@ -52,30 +52,30 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   //create a deformation field transform
   //typedef TranslationTransform<double, Dimension>
 
-  typedef itk::PolyAffineTransform<double, Dimension> PolyAffineTransformType;
-  typedef PolyAffineTransformType::LocalAffineTransformType LocalAffineTransformType;
-  typedef PolyAffineTransformType::DisplacementFieldType DisplacementFieldType;
-  typedef LocalAffineTransformType::MaskImageType MaskImageType;
+  typedef typename itk::PolyAffineTransform<double, Dimension> PolyAffineTransformType;
+  typedef typename PolyAffineTransformType::LocalAffineTransformType LocalAffineTransformType;
+  typedef typename PolyAffineTransformType::DisplacementFieldType DisplacementFieldType;
+  typedef typename LocalAffineTransformType::MaskImageType MaskImageType;
 
-  typedef itk::GroupSpatialObject< Dimension > SceneType;
-  typedef itk::BoxSpatialObject< Dimension > BoxType;
+  typedef typename itk::GroupSpatialObject< Dimension > SceneType;
+  typedef typename itk::BoxSpatialObject< Dimension > BoxType;
 
-  SceneType::Pointer scene1 = SceneType::New();
-  SceneType::Pointer scene2 = SceneType::New();
-  BoxType::Pointer box1 = BoxType::New();
-  BoxType::Pointer box2 = BoxType::New();
+  typename SceneType::Pointer scene1 = SceneType::New();
+  typename SceneType::Pointer scene2 = SceneType::New();
+  typename BoxType::Pointer box1 = BoxType::New();
+  typename BoxType::Pointer box2 = BoxType::New();
   scene1->AddSpatialObject(box1);
   scene2->AddSpatialObject(box2);
   
-  BoxType::SizeType boxsize1;
-  BoxType::SizeType boxsize2;
+  typename BoxType::SizeType boxsize1;
+  typename BoxType::SizeType boxsize2;
   boxsize1.Fill(20);
   box1->SetSize( boxsize1 );
   boxsize2.Fill(20);
   box2->SetSize( boxsize2 );
 
-  BoxType::TransformType::OffsetType boxOffset1;
-  BoxType::TransformType::OffsetType boxOffset2;
+  typename BoxType::TransformType::OffsetType boxOffset1;
+  typename BoxType::TransformType::OffsetType boxOffset2;
   //not overlapping below
   //double offset1[] = {50.0, 10.0, 50.0};
   //double offset2[] = {10.0, 50.0, 50.0};
@@ -98,15 +98,15 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   box2->GetObjectToParentTransform()->SetOffset( boxOffset2 );
   box2->ComputeObjectToWorldTransform();
 
-  MaskImageType::SizeType size;
+  typename MaskImageType::SizeType size;
   size.Fill(160);
 
-  PolyAffineTransformType::Pointer polyTransform = PolyAffineTransformType::New();
-  LocalAffineTransformType::Pointer localTransform1 = LocalAffineTransformType::New();
-  LocalAffineTransformType::Pointer localTransform2 = LocalAffineTransformType::New();
+  typename PolyAffineTransformType::Pointer polyTransform = PolyAffineTransformType::New();
+  typename LocalAffineTransformType::Pointer localTransform1 = LocalAffineTransformType::New();
+  typename LocalAffineTransformType::Pointer localTransform2 = LocalAffineTransformType::New();
 
-  typedef  itk::Matrix<double, Dimension, Dimension> MatrixType;
-  typedef  itk::Vector<double, Dimension> VectorType;
+  typedef itk::Matrix<double, Dimension, Dimension> MatrixType;
+  typedef itk::Vector<double, Dimension> VectorType;
   VectorType affineOffset1, affineOffset2;
   //not overlapping below
   //double translation1[] = {50, 0, 30};
@@ -128,14 +128,14 @@ int itkPolyAffineTransformTest(int argc, char *argv[])
   localTransform1->SetOffset(affineOffset1);
   localTransform2->SetOffset(affineOffset2);
 
-  localTransform1->ComputeFixedMaskImageFromSpatialObject<SceneType>(scene1, size);
-  localTransform2->ComputeFixedMaskImageFromSpatialObject<SceneType>(scene2, size);
+  localTransform1->template ComputeFixedMaskImageFromSpatialObject< SceneType >(scene1, size);
+  localTransform2->template ComputeFixedMaskImageFromSpatialObject< SceneType >(scene2, size);
 
   polyTransform->AddLocalAffineTransform(localTransform1);
   polyTransform->AddLocalAffineTransform(localTransform2);
   polyTransform->SetTimeStampLog(8);
 
-  DisplacementFieldType::Pointer displacementField = polyTransform->GetDisplacementField();
+  typename DisplacementFieldType::Pointer displacementField = polyTransform->GetDisplacementField();
 
   PicslImageHelper::WriteImage<DisplacementFieldType>(displacementField, fileName);
   PicslImageHelper::WriteDisplacementField<DisplacementFieldType>(displacementField, fileName);
