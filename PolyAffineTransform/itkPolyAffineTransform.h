@@ -380,6 +380,10 @@ public:
    */
   bool InitializeBuffers();
 
+  /** Allocate memory for DisplacementField and fill it with zeros.
+   */
+  void InitializeDisplacementField();
+
   /** Compute the boundary as the union of all moving and fixed image
    *  domains of local transforms.
    */
@@ -544,13 +548,17 @@ private:
 
   // Timers for different methods
   itk::TimeProbe                            m_TimerComputeNextStepTrajectory;
-  itk::TimeProbe                            m_TimerDistanceMapImageFilter;
+  itk::TimeProbe                            m_TimerComputeTrajectoryDistanceMapImage;
+  itk::TimeProbe                            m_TimerComputeBoundaryDistanceMapImage;
 
   itk::TimeProbe                            m_TimerRewindTrajectory;
   itk::TimeProbe                            m_TimerCombineTrajectories;
   itk::TimeProbe                            m_TimerComputeWeightedSumOfVelocityFields;
 
   itk::TimeProbe                            m_TimerInitializeBuffers;
+  itk::TimeProbe                            m_TimerInitializeBoundaryMask;
+  itk::TimeProbe                            m_TimerInitializeDisplacementField;
+
   itk::TimeProbe                            m_TimerInitializeIteration;
   itk::TimeProbe                            m_TimerComputeVelocityFieldBeforeOverlap;
   itk::TimeProbe                            m_TimerExponentialMapping;

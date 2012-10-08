@@ -154,6 +154,7 @@ public:
   itkGetConstReferenceMacro(TimerMatrixExponential,      TimeProbe);
   itkGetConstReferenceMacro(TimerMatrixLogarithm,        TimeProbe);
   itkGetConstReferenceMacro(TimerComputeSamplePointSet,  TimeProbe);
+  itkGetConstReferenceMacro(TimerDilateFixedMaskImage,   TimeProbe);
 
   /** Compute the fixed mask image from a Spatial Object.  */
   template< class TSpatialObject > 
@@ -283,6 +284,7 @@ private:
   itk::TimeProbe            m_TimerMatrixExponential;
   itk::TimeProbe            m_TimerMatrixLogarithm;
   itk::TimeProbe            m_TimerComputeSamplePointSet;
+  itk::TimeProbe            m_TimerDilateFixedMaskImage;
 
 }; //class LocalAffineTransform
 

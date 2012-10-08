@@ -256,7 +256,9 @@ template< class TScalarType, unsigned int NDimensions >
 void
 LocalAffineTransform< TScalarType, NDimensions >
 ::DilateFixedMaskImage(unsigned int radius)
-  {
+{
+  m_TimerDilateFixedMaskImage.Start();
+
   typedef typename itk::BinaryBallStructuringElement<typename MaskImageType::PixelType,
     NDimensions> StructuringElementType;
 
@@ -277,7 +279,9 @@ LocalAffineTransform< TScalarType, NDimensions >
   MaskImagePointer dilatedImage = dilateFilter->GetOutput();
   dilatedImage->DisconnectPipeline();
   this->m_FixedMaskImage = dilatedImage;
-  }
+
+  m_TimerDilateFixedMaskImage.Stop();  
+}
 
 /** Compute the partial transform during [startTime, stopTime].
  *  It is computed by exp(t*log(T)) where t=(stopTime-startTime)/m_TimeStampMax,

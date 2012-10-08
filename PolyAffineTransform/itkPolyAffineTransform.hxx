@@ -431,6 +431,8 @@ void
 PolyAffineTransform< TScalarType, NDimensions >
 ::InitializeBoundaryMask()
 {
+  this->m_TimerInitializeBoundaryMask.Start();
+
   ContinuousIndexType minIndex, maxIndex;
   PointType point;
   RegionType region;
@@ -536,6 +538,8 @@ PolyAffineTransform< TScalarType, NDimensions >
       it.Set(0); //set the boundary pixels to zero
       }
     }
+
+  this->m_TimerInitializeBoundaryMask.Stop();
 }
 
 template< class TScalarType,
@@ -661,7 +665,7 @@ typename PolyAffineTransform< TScalarType, NDimensions >::DistanceMapImagePointe
 PolyAffineTransform< TScalarType, NDimensions >
 ::ComputeTrajectoryDistanceMapImage(TrajectoryImagePointer traj)
 {
-  this->m_TimerDistanceMapImageFilter.Start();
+  this->m_TimerComputeTrajectoryDistanceMapImage.Start();
 
   typedef itk::SignedMaurerDistanceMapImageFilter
     <TrajectoryImageType, DistanceMapImageType>                DistanceMapImageFilterType;
@@ -677,7 +681,7 @@ PolyAffineTransform< TScalarType, NDimensions >
 
   DistanceMapImagePointer output = filter->GetOutput();
 
-  this->m_TimerDistanceMapImageFilter.Stop();
+  this->m_TimerComputeTrajectoryDistanceMapImage.Stop();
 
   return output;
 }
@@ -688,7 +692,7 @@ typename PolyAffineTransform< TScalarType, NDimensions >::DistanceMapImagePointe
 PolyAffineTransform< TScalarType, NDimensions >
 ::ComputeBoundaryDistanceMapImage()
 {
-  this->m_TimerDistanceMapImageFilter.Start();
+  this->m_TimerComputeBoundaryDistanceMapImage.Start();
 
   typedef itk::SignedMaurerDistanceMapImageFilter
     <MaskImageType, DistanceMapImageType>                           DistanceMapImageFilterType;
@@ -703,7 +707,7 @@ PolyAffineTransform< TScalarType, NDimensions >
   filter->Update();
 
   DistanceMapImagePointer output = filter->GetOutput();
-  this->m_TimerDistanceMapImageFilter.Stop();
+  this->m_TimerComputeBoundaryDistanceMapImage.Stop();
   return output; 
 }
 
@@ -791,6 +795,26 @@ PolyAffineTransform< TScalarType, NDimensions >
     traj->Allocate();
     this->m_TrajectoryImageVector[t] = traj;
     }
+  
+  this->InitializeDisplacementField();
+
+  //Initialize the sum of velocity field
+  this->m_VelocityField = DisplacementFieldType::New();
+  this->m_VelocityField->CopyInformation(this->m_BoundaryMask);
+  this->m_VelocityField->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
+  this->m_VelocityField->Allocate();
+
+  m_TimerInitializeBuffers.Stop();
+  return true;
+}
+
+template< class TScalarType,
+          unsigned int NDimensions >
+void
+PolyAffineTransform< TScalarType, NDimensions >
+::InitializeDisplacementField()
+{
+  this->m_TimerInitializeDisplacementField.Start();
 
   //Initialize the overall displacement field
   this->m_DisplacementField = DisplacementFieldType::New();
@@ -802,14 +826,7 @@ PolyAffineTransform< TScalarType, NDimensions >
   VectorType disp(0.0);
   this->m_DisplacementField->FillBuffer(disp); //identity transform
 
-  //Initialize the sum of velocity field
-  this->m_VelocityField = DisplacementFieldType::New();
-  this->m_VelocityField->CopyInformation(this->m_BoundaryMask);
-  this->m_VelocityField->SetRegions(this->m_BoundaryMask->GetLargestPossibleRegion());
-  this->m_VelocityField->Allocate();
-
-  m_TimerInitializeBuffers.Stop();
-  return true;
+  this->m_TimerInitializeDisplacementField.Stop();
 }
 
 template< class TScalarType,
@@ -1231,18 +1248,23 @@ PolyAffineTransform< TScalarType, NDimensions >
   double totalTimerMatrixExponential = 0;
   double totalTimerMatrixLogarithm = 0;
   double totalTimerComputeSamplePointSet = 0;
+  double totalTimerDilateFixedMaskImage = 0;
 
   for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
     {
     LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[t];
     totalTimerComputeFixedMaskImage += trans->GetTimerComputeFixedMaskImage().GetTotal();
+    totalTimerDilateFixedMaskImage += trans->GetTimerDilateFixedMaskImage().GetTotal();
     totalTimerComputeMovingMaskImage += trans->GetTimerComputeMovingMaskImage().GetTotal();
     totalTimerComputeSamplePointSet += trans->GetTimerComputeSamplePointSet().GetTotal();
+
     totalTimerMatrixExponential += trans->GetTimerMatrixExponential().GetTotal();
     totalTimerMatrixLogarithm += trans->GetTimerMatrixLogarithm().GetTotal();
     }
   std::cout << "totalTimerComputeFixedMaskImage = " 
     << totalTimerComputeFixedMaskImage << " seconds" << std::endl;
+  std::cout << "totalTimerDilateFixedMaskImage = " 
+    << totalTimerDilateFixedMaskImage << " seconds" << std::endl;
   std::cout << "totalTimerComputeMovingMaskImage = " 
     << totalTimerComputeMovingMaskImage << " seconds" << std::endl;
   std::cout << "totalTimerComputeSamplePointSet = " 
@@ -1254,10 +1276,18 @@ PolyAffineTransform< TScalarType, NDimensions >
     << totalTimerMatrixLogarithm << " seconds" << std::endl;
 
   std::cout << std::endl;
+  std::cout << "m_TimerInitializeBoundaryMask.GetTotal() = " 
+    << m_TimerInitializeBoundaryMask.GetTotal() << " seconds" << std::endl;
+  std::cout << "m_TimerComputeBoundaryDistanceMapImage.GetTotal() = " 
+    << m_TimerComputeBoundaryDistanceMapImage.GetTotal() << " seconds" << std::endl;
+  std::cout << "m_TimerInitializeDisplacementField.GetTotal() = " 
+    << m_TimerInitializeDisplacementField.GetTotal() << " seconds" << std::endl;
+
+  std::cout << std::endl;
   std::cout << "m_TimerComputeNextStepTrajectory.GetTotal() = " 
     << m_TimerComputeNextStepTrajectory.GetTotal() << " seconds" << std::endl;
-  std::cout << "m_TimerDistanceMapImageFilter.GetTotal() = " 
-    << m_TimerDistanceMapImageFilter.GetTotal() << " seconds" << std::endl;
+  std::cout << "m_TimerComputeTrajectoryDistanceMapImage.GetTotal() = " 
+    << m_TimerComputeTrajectoryDistanceMapImage.GetTotal() << " seconds" << std::endl;
 
   std::cout << "m_TimerRewindTrajectory.GetTotal() = " 
     << m_TimerRewindTrajectory.GetTotal() << " seconds" << std::endl;
