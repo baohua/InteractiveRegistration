@@ -543,15 +543,20 @@ private:
   DistanceMapImagePointer                   m_CombinedTrajectoryDistanceMapImage;
 
   // Timers for different methods
-  itk::TimeProbe                            m_TimerTrajectory;
-  itk::TimeProbe                            m_TimerDistanceMap;
-  itk::TimeProbe                            m_TimerExponentialMapping;
-  itk::TimeProbe                            m_TimerDisplacementFieldComposing;
-  itk::TimeProbe                            m_TimerComputeDisplacementField;
+  itk::TimeProbe                            m_TimerComputeNextStepTrajectory;
+  itk::TimeProbe                            m_TimerDistanceMapImageFilter;
 
-  itk::TimeProbe                            m_TimerComputeVelocityFieldBeforeOverlap;
+  itk::TimeProbe                            m_TimerRewindTrajectory;
+  itk::TimeProbe                            m_TimerCombineTrajectories;
+  itk::TimeProbe                            m_TimerComputeWeightedSumOfVelocityFields;
+
   itk::TimeProbe                            m_TimerInitializeBuffers;
   itk::TimeProbe                            m_TimerInitializeIteration;
+  itk::TimeProbe                            m_TimerComputeVelocityFieldBeforeOverlap;
+  itk::TimeProbe                            m_TimerExponentialMapping;
+  itk::TimeProbe                            m_TimerDisplacementFieldComposing;
+
+  itk::TimeProbe                            m_TimerComputeDisplacementField;
 
 }; //class PolyAffineTransform
 }  // namespace itk
