@@ -428,10 +428,12 @@ void
 LocalAffineTransform< TScalarType, NDimensions >
 ::ComputeSamplePointSet(int timeStamp)
 {
+  m_TimerComputeSamplePointSet.Start();
   //fill m_SamplePointSet with points
   this->m_SamplePointSet = PointSetType::New();
   this->WarpFixedMaskIntoPointSet(timeStamp);
   this->WarpMovingMaskIntoPointSet(timeStamp);
+  m_TimerComputeSamplePointSet.Stop();
 }
 
 /**

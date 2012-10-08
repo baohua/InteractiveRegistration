@@ -1230,12 +1230,14 @@ PolyAffineTransform< TScalarType, NDimensions >
   double totalTimerComputeMovingMaskImage = 0;
   double totalTimerMatrixExponential = 0;
   double totalTimerMatrixLogarithm = 0;
+  double totalTimerComputeSamplePointSet = 0;
 
   for (unsigned int t=0; t<this->GetNumberOfLocalAffineTransforms(); t++)
     {
     LocalAffineTransformPointer trans = this->m_LocalAffineTransformVector[t];
     totalTimerComputeFixedMaskImage += trans->GetTimerComputeFixedMaskImage().GetTotal();
     totalTimerComputeMovingMaskImage += trans->GetTimerComputeMovingMaskImage().GetTotal();
+    totalTimerComputeSamplePointSet += trans->GetTimerComputeSamplePointSet().GetTotal();
     totalTimerMatrixExponential += trans->GetTimerMatrixExponential().GetTotal();
     totalTimerMatrixLogarithm += trans->GetTimerMatrixLogarithm().GetTotal();
     }
@@ -1243,6 +1245,8 @@ PolyAffineTransform< TScalarType, NDimensions >
     << totalTimerComputeFixedMaskImage << " seconds" << std::endl;
   std::cout << "totalTimerComputeMovingMaskImage = " 
     << totalTimerComputeMovingMaskImage << " seconds" << std::endl;
+  std::cout << "totalTimerComputeSamplePointSet = " 
+    << totalTimerComputeSamplePointSet << " seconds" << std::endl;
 
   std::cout << "totalTimerMatrixExponential = " 
     << totalTimerMatrixExponential << " seconds" << std::endl;
