@@ -171,4 +171,6 @@ int main(int argc, char *argv[])
     std::cerr << "Dimension " << Dimension << " is not supported." << std::endl;
     return EXIT_FAILURE;
     }
+
+  return EXIT_SUCCESS;
 }
