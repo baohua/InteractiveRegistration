@@ -761,7 +761,7 @@ PolyAffineTransform< TScalarType, NDimensions >
     }
 
   //Initialize BoundaryMask and its DistanceMapImage
-  this->InitializeBoundaryMask();
+  this->InitializeBoundaryMask(); //GS: not sure what is a boundary mask?
   PicslImageHelper::WriteImage<MaskImageType>
     (this->m_BoundaryMask, "tmpBoundMask.nii");
 

@@ -11,6 +11,11 @@ add_executable(itkPolyAffineTransformTest itkPolyAffineTransformTest.cxx
 target_link_libraries(itkPolyAffineTransformTest ${ITK_LIBRARIES})
 
 # add the executable
+add_executable(itkPolyAffineTransformTest2 itkPolyAffineTransformTest2.cxx
+               )
+target_link_libraries(itkPolyAffineTransformTest2 ${ITK_LIBRARIES})
+
+# add the executable
 add_executable(itkLocalAffineTransformTest itkLocalAffineTransformTest.cxx
                itkLocalAffineTransform.h itkLocalAffineTransform.hxx
                itkPicslImageHelper.h itkPicslImageHelper.hxx
