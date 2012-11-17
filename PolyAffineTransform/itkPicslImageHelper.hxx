@@ -144,14 +144,15 @@ PicslImageHelper
     {
     return;
     }
-  char fullName[256];
-  PicslImageHelper::AppendPathToFileName(fullName, fname);
+  // char fullName[256];
+  // PicslImageHelper::AppendPathToFileName(fullName, fname);
 
   typedef ImageFileWriter<TImage> WriterType;
   
   typename WriterType::Pointer writer = WriterType::New();
   writer->SetInput(image);
-  writer->SetFileName( fullName );
+  // writer->SetFileName( fullName );
+  writer->SetFileName( fname );
 
   try
     {

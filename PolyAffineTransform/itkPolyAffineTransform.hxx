@@ -24,6 +24,12 @@
 #include "itkMath.h"
 #include "itkCrossHelper.h"
 #include "itkImageRegionIteratorWithIndex.h"
+#include "itkVelocityFieldTransform.h"
+#include "itkConstantVelocityFieldTransform.h"
+#include "itkGaussianSmoothingOnUpdateTimeVaryingVelocityFieldTransform.h"
+//#include "itkDisplacementFieldTransform.h"
+//#include "itkTimeVaryingBSplineVelocityFieldTransform.h"
+//#include "itkTimeVaryingVelocityFieldTransform.h"
 
 namespace itk
 {

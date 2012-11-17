@@ -103,7 +103,7 @@ int itkPolyAffineTransformTest2(int argc, char *argv[])
   typename ImageMaskSpatialObjectType::Pointer maskSO = ImageMaskSpatialObjectType::New();
   maskSO->SetImage(mask);
 
-// load the affine transform
+  // load the affine transform
   typedef itk::AffineTransform  AffineTransformType;
   AffineTransformType::Pointer aff1 = AffineTransformType::New();
   AffineTransformType::Pointer aff2 = AffineTransformType::New();
