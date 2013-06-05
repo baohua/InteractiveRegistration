@@ -32,9 +32,9 @@ public:
   static void WriteDisplacementField(typename TField::Pointer field, char *fname, int id);
 
   template< class TImage>
-  static void WriteResultImage(typename TImage::Pointer image, char *fname);
+  static void WriteResultImage(typename TImage::Pointer image, const char *fname);
   template< class TImage>
-  static void WriteImage(typename TImage::Pointer image, char *fname);
+  static void WriteImage(typename TImage::Pointer image, const char *fname);
   template< class TImage>
   static void WriteImage(typename TImage::Pointer image, char *fname, int id);
 

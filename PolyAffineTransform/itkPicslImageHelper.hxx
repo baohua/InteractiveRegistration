@@ -115,7 +115,7 @@ PicslImageHelper
 template< class TImage>
 void 
 PicslImageHelper
-::WriteResultImage(typename TImage::Pointer image, char *fname)
+::WriteResultImage(typename TImage::Pointer image, const char *fname)
 {
   bool tmpDebug = PicslImageHelper::m_Debug;
   PicslImageHelper::m_Debug = true;
@@ -138,7 +138,7 @@ PicslImageHelper
 template< class TImage>
 void 
 PicslImageHelper
-::WriteImage(typename TImage::Pointer image, char *fname)
+::WriteImage(typename TImage::Pointer image, const char *fname)
 {
   if (!PicslImageHelper::m_Debug)
     {

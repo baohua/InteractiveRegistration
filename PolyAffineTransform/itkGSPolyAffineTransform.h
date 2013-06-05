@@ -35,7 +35,12 @@
 #include "itkShapedNeighborhoodIterator.h"
 #include "itkDanielssonDistanceMapImageFilter.h"
 
+#include "itkImageFileWriter.h"
+
 #include <vector>
+#include "vnl/vnl_math.h"
+
+#include "itkCompositeTransform.h"
 
 namespace itk
 {
@@ -279,6 +284,8 @@ public:
   typedef MatrixOffsetTransformBase<TScalar, NDimensions, NDimensions> MatrixOffsetTransformBaseType;
   typedef typename ConstantVelocityFieldTransformType::ConstantVelocityFieldType ConstantVelocityFieldType;
   typedef typename ConstantVelocityFieldType::PixelType VelocityPixelType;
+  typedef typename ConstantVelocityFieldTransformType::DisplacementFieldType DisplacementFieldType;
+
 
 
   /** Trajectory Collision **/
@@ -302,6 +309,11 @@ public:
   // points[pts_idx, time]
   VectorOfPointVectorType m_ControlPointListTrajectory;
   
+  double m_BoundarySigma;
+  itkSetMacro(BoundarySigma, double);
+  itkGetMacro(BoundarySigma, double);
+
+
 
 
   /** Individual Affine Transform **/
@@ -309,7 +321,7 @@ public:
   //   LocalAffineList;
 
 
-  typedef GSLocalAffineTransform<double, NDimensions> LocalAffineTransformType;
+  typedef GSLocalAffineTransform<TScalar, NDimensions> LocalAffineTransformType;
 
   std::vector<typename LocalAffineTransformType::Pointer> m_LocalAffineList;
 
@@ -334,6 +346,7 @@ public:
   typedef Image<unsigned char, NDimensions> BinaryImageType;
   typedef typename BinaryImageType::Pointer BinaryImagePointerType;
   typedef Image<float, NDimensions> FloatImageType;
+  typedef typename FloatImageType::Pointer FloatImagePointerType;
   typedef Image<float, NDimensions> DistanceImageType;
   typedef typename DistanceImageType::Pointer DistanceImagePointerType;
 
@@ -359,8 +372,6 @@ public:
 
   std::vector<perCollision> m_C;
 
-
-
 //  std::vector<LabelImagePointerType> m_TrajectoryImageList;
 //  std::vector<DistanceImagePointerType> m_TrajectoryDistanceImageList;
 //  std::vector<LabelImagePointerType> m_TrajectoryDistanceVoronoiImageList;
@@ -369,6 +380,10 @@ public:
 
 
   typedef ShapedNeighborhoodIterator<LabelImageType> SNIteratorType;
+
+
+  typedef CompositeTransform<TScalar, NDimensions> CompositeTransformType;
+  typedef typename CompositeTransformType::Pointer CompositeTransformPointerType;
 
   void ComputeFieldTransfromFromLocalAffineTransform();
   void SampleFromLabelMask(const LabelImagePointerType &, const SampleSpacingType &, PointVectorType &, PointLabelVectorType &);
@@ -384,8 +399,35 @@ public:
   void FillBallShapedNeighborhoodIterator(const unsigned int radius, SNIteratorType &it);
   void GetTrajectoryVoronoiBand(const LabelImagePointerType &voronoi, unsigned int voronoi_band_radius, BinaryImagePointerType &dL, BinaryImagePointerType &edge);
   void AssignWeightsToPointsInsideBand(const BinaryImagePointerType &band, const BinaryImagePointerType &edge, unsigned int collision_time);
+  void AssignWeightsToPointsInsideBand2(const BinaryImagePointerType &band, const BinaryImagePointerType &edge, unsigned int collision_time);
   void MixingVelocityFieldsFromEveryLabel(unsigned int collision_time);
+  void SuppressVelocityCloseToBoundary(unsigned int collision_time);
 
+  // m_CompositeTransform is the concatenation of all the velocity field transform
+  // note that: pay attention to the order when adding to composite transform
+  // the reverse order in the collision time?
+  CompositeTransformPointerType m_CompositeTransform;
+  void ComputeCompositeTransform();
+
+  void ComputeTrajectoryOfAllTimeInOneImage();
+
+  LabelImagePointerType m_TrajectoryOfAllTime;
+
+  void ComputeWeightByDistanceToTrajectoryOfAllTime();
+  DistanceImagePointerType m_TrajectoryOfAllTimeDistanceMap;
+  FloatImagePointerType m_TrajectoryOfAllTimeWeightImage;
+
+  double m_TrajectoryOfAllTimeDistanceSigma;
+  itkSetMacro(TrajectoryOfAllTimeDistanceSigma, double);
+  itkGetMacro(TrajectoryOfAllTimeDistanceSigma, double);
+
+  unsigned int m_BandRadius; // voronoi_band_radius
+  itkSetMacro(BandRadius, unsigned int);
+  itkGetMacro(BandRadius, unsigned int);
+
+  void SuppressVelocityCloseToTrajectory(unsigned int collision_time);
+
+  void ScaleVelocityForExponential(unsigned int collision_time);
 
 protected:
 
@@ -400,6 +442,15 @@ protected:
 private:
   GSPolyAffineTransform( const Self & ); // purposely not implemented
   void operator=( const Self & );             // purposely not implemented
+
+public:
+  typedef typename LabelImageType::IndexType IndexType;
+  float euclidean_distance_square(const IndexType &index1, const IndexType &index2)
+  {
+    float d2 = 0;
+    for(unsigned int d=0; d<InputDimension; d++) d2 += (index1[d]-index2[d])*(index1[d]-index2[d]);
+    return d2;
+  }
 
 };
 
@@ -446,7 +497,7 @@ void AllocateNewVectorImageOfSameDimension(const InputImagePointerType &input, O
 template<class LabelImagePointerType, class DistanceImagePointerType>
 void GetDistanceTransformFromLabelImage(const LabelImagePointerType &label, DistanceImagePointerType &distance, LabelImagePointerType &voronoi)
 {
-  std::cout << "in" << std::endl;
+
   typedef typename LabelImagePointerType::ObjectType LabelImageType;
   typedef typename DistanceImagePointerType::ObjectType DistanceImageType;
   typedef DanielssonDistanceMapImageFilter<LabelImageType, DistanceImageType > FilterType;
@@ -454,13 +505,25 @@ void GetDistanceTransformFromLabelImage(const LabelImagePointerType &label, Dist
   filter->SetInput(label);
   filter->InputIsBinaryOff();
 
-  std::cout << "out 1" << std::endl;
+  std::cout << "in GetDistanceTransformFromLabelImage, Update()" << std::endl;
+  filter->Update();
+
+  std::cout << "get distance map out" << std::endl;
   distance = filter->GetOutput();
-  std::cout << "out 2" << std::endl;
+  std::cout << "get voronoi label out" << std::endl;
   voronoi = filter->GetVoronoiMap();
   std::cout << "out 3" << std::endl;
-  filter->Update();
-  std::cout << "out 3" << std::endl;
+
+
+}
+
+float compute_boundary_suppresion_weight(float d, float s)
+{
+  float w = 0;
+
+  w = 1 - vcl_exp(-1 * (d/s));
+
+  return w;
 }
 
 float compute_weight_from_distance_to_boundary(float pd, double th)
@@ -476,6 +539,31 @@ float compute_weight_from_distance_to_boundary(float pd, double th)
 
   return w;
 }
+
+template<class ImageType, class String>
+void GSWriteImageRawPointer(const ImageType *img, const String &str)
+{
+  typedef ImageFileWriter<ImageType> WriterType;
+  typename WriterType::Pointer writer = WriterType::New();
+  writer->SetInput(img);
+  writer->SetFileName(str);
+  writer->Update();
+}
+
+template<class ImagePointerType, class String>
+void GSWriteImage(const ImagePointerType &img, const String &str)
+{
+  typedef typename ImagePointerType::ObjectType ImageType;
+  typedef ImageFileWriter<ImageType> WriterType;
+  typename WriterType::Pointer writer = WriterType::New();
+  writer->SetInput(img);
+  writer->SetFileName(str);
+  writer->Update();
+}
+
+
+
+
 } // end namespace itk
 
 #if ITK_TEMPLATE_TXX

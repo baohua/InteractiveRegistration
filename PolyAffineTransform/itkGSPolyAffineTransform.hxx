@@ -19,7 +19,10 @@
 #include "itkWeightedCentroidKdTreeGenerator.h"
 #include "itkEuclideanDistanceMetric.h"
 
+#include "itkConstantBoundaryCondition.h"
+#include <map>
 
+#include "itkTransformToDisplacementFieldSource.h"
 
 
 
@@ -38,26 +41,158 @@ template <class TScalar, unsigned int NDimensions>
 void GSPolyAffineTransform<TScalar, NDimensions>::ComputeFieldTransfromFromLocalAffineTransform()
 {
 
-
+  std::cout << "SampleFromLabelMask" << std::endl;
 	SampleFromLabelMask(m_LabelImage, m_SampleSpacing, m_ControlPointList, m_ControlPointLabelList);
 	unsigned int nb_pts = m_ControlPointList.size();
 //	for(int i=0; i<nb_pts; i++) std::cout << "["<< i << "]" << m_ControlPointList[i] << ":" << m_ControlPointLabelList[i] << std::endl;
+
+	std::cout << "ConvertAffineTransformsToLogarithm();" << std::endl;
 	ConvertAffineTransformsToLogarithm();
 	// PrecomputeTrajectoryAndCheckCollision();
+
+	std::cout << "PrecomputeTrajectoryAndCheckCollision2" << std::endl;
 	PrecomputeTrajectoryAndCheckCollision2();
 
+	ComputeTrajectoryOfAllTimeInOneImage();
+	ComputeWeightByDistanceToTrajectoryOfAllTime();
+
+	GSWriteImage(m_TrajectoryOfAllTimeWeightImage, "trajectory_weight.mha");
 	// allocate the trajectory mask and helper strucuture for each collsion period;
 
 	unsigned int nbCollision = m_CollisionTimeList.size() - 1;
-
 	m_C.clear();
 	m_C.resize(nbCollision);
 
 	for(unsigned int i=0; i<nbCollision; i++) {
 	  GetStationaryVieldCopyPasteDecreasing(i, m_C[i].velocityFieldTransform);
+
+
+	  // dump out the voronoi / band /edge
+	  std::ostringstream stringStream;
+	  stringStream << "voronoi-" << i << ".mha";
+	  GSWriteImage(m_C[i].trajectoryDistanceVoronoiImage, stringStream.str());
+
+	  stringStream.clear(); stringStream.str("");
+	  stringStream << "band-" << i << ".mha";
+	  GSWriteImage(m_C[i].voronoiBandImage, stringStream.str());
+
+	  stringStream.clear(); stringStream.str("");
+    stringStream << "edge-" << i << ".mha";
+    GSWriteImage(m_C[i].voronoiEdgeImage, stringStream.str());
+
+    stringStream.clear(); stringStream.str("");
+    stringStream << "field-" << i << ".mha";
+    GSWriteImageRawPointer(m_C[i].velocityFieldTransform->GetDisplacementField(), stringStream.str());
+
+
+    stringStream.clear(); stringStream.str("");
+    stringStream << "velocity-" << i << ".mha";
+    GSWriteImageRawPointer(m_C[i].velocityFieldTransform->GetConstantVelocityField(), stringStream.str());
+
 	}
 
+	ComputeCompositeTransform();
+
 }
+
+template <class TScalar, unsigned int NDimensions>
+void GSPolyAffineTransform<TScalar, NDimensions>::ComputeTrajectoryOfAllTimeInOneImage()
+{
+  m_TrajectoryOfAllTime = LabelImageType::New();
+  AllocateNewImageOfSameDimension(m_LabelImage, m_TrajectoryOfAllTime);
+
+  unsigned int ind_t1 = 0;
+  unsigned int ind_t2 = m_NumberOfTimeSteps - 1;
+
+  unsigned int nbPts = m_ControlPointList.size();
+
+  typename LabelImageType::RegionType region = m_TrajectoryOfAllTime->GetBufferedRegion();
+
+  ImageRegionIteratorWithIndex<LabelImageType> it(m_TrajectoryOfAllTime, m_TrajectoryOfAllTime->GetBufferedRegion());
+  for(unsigned int i = 0; i < nbPts; i++) {
+    unsigned int label = m_ControlPointLabelList[i];
+    for(unsigned int t = ind_t1; t<= ind_t2; t++) {
+      typename LabelImageType::IndexType index;
+      typename LabelImageType::PointType pt;
+      pt = m_ControlPointListTrajectory[i][t];
+      m_LabelImage->TransformPhysicalPointToIndex(pt, index);
+      it.SetIndex(index);
+      if (region.IsInside(index))
+        it.Set(label);
+    }
+  }
+}
+
+template <class TScalar, unsigned int NDimensions>
+void GSPolyAffineTransform<TScalar, NDimensions>::ComputeWeightByDistanceToTrajectoryOfAllTime()
+{
+//  DistanceImagePointerType m_TrajectoryOfAllTimeDistanceMap;
+//  FloatImagePointerType m_TrajectoryOfAllTimeWeightImage;
+
+  typedef DanielssonDistanceMapImageFilter<LabelImageType, DistanceImageType > FilterType;
+  typename FilterType::Pointer filter = FilterType::New();
+  filter->SetInput(m_TrajectoryOfAllTime);
+  filter->InputIsBinaryOff();
+  filter->Update();
+  m_TrajectoryOfAllTimeDistanceMap = filter->GetOutput();
+
+  // velocity will be weighted by its distance to the trajectory mask (constructed from whole time)
+  AllocateNewImageOfSameDimension(m_LabelImage, m_TrajectoryOfAllTimeWeightImage);
+  ImageRegionIterator<DistanceImageType> dit(m_TrajectoryOfAllTimeDistanceMap,
+                                            m_TrajectoryOfAllTimeDistanceMap->GetBufferedRegion());
+
+  ImageRegionIterator<FloatImageType> wit(m_TrajectoryOfAllTimeWeightImage,
+      m_TrajectoryOfAllTimeWeightImage->GetBufferedRegion());
+
+  const double h = m_InterTrajectoryDistThres*2;
+  const double s = m_TrajectoryOfAllTimeDistanceSigma;
+  for(dit.GoToBegin(), wit.GoToBegin(); ! dit.IsAtEnd(); ++dit, ++wit) {
+    float d = dit.Get();
+    // compute weight as
+    // w = exp( ((d-h)/sigma)^2) if d > h
+    //   = 1 if d < h
+    float w = (d < h) ? 1 : (vcl_exp(-1 * ((d-h)/s)*((d-h)/s)));
+    wit.Set(w);
+  }
+
+}
+
+
+
+template <class TScalar, unsigned int NDimensions>
+void GSPolyAffineTransform<TScalar, NDimensions>::ComputeCompositeTransform()
+{
+  m_CompositeTransform = CompositeTransformType::New();
+
+  std::cout << "Composite Transform:" << m_CompositeTransform << std::endl;
+
+  unsigned int nbCollsion = m_C.size();
+  for(int i=nbCollsion-1; i>=0; --i) { // note: couldn't use unsigned int here, otherwise --0 will become 4294967295
+//  for(int i=0; i<nbCollsion; ++i) { // note: couldn't use unsigned int here, otherwise --0 will become 4294967295
+    std::cout << "[" << i << "]" << std::endl; //<< m_C[i].velocityFieldTransform << std::endl;
+    m_CompositeTransform->AddTransform(m_C[i].velocityFieldTransform);
+  }
+
+  std::cout << "Composite Transform:" << m_CompositeTransform << std::endl;
+
+  // Dump as a deformation field
+  typedef typename itk::TransformToDisplacementFieldSource<DisplacementFieldType, TScalar> ConverterType;
+  typename ConverterType::Pointer converter = ConverterType::New();
+  converter->SetOutputParametersFromImage( m_LabelImage );
+  converter->SetTransform( m_CompositeTransform );
+
+  typedef  itk::ImageFileWriter<DisplacementFieldType> DisplacementFieldWriterType;
+  typename DisplacementFieldWriterType::Pointer displacementFieldWriter = DisplacementFieldWriterType::New();
+  displacementFieldWriter->SetInput( converter->GetOutput() );
+  displacementFieldWriter->SetFileName( "composite.mhd" );
+  displacementFieldWriter->Update();
+
+  typename DisplacementFieldType::Pointer composite_field = converter->GetOutput();
+
+  std::cout << "final compoisite field:" << composite_field << std::endl;
+
+}
+
 
 template <class TScalar, unsigned int NDimensions>
 void GSPolyAffineTransform<TScalar, NDimensions>::GetStationaryVieldCopyPasteDecreasing(unsigned int collision_time, ConstantVelocityFieldTransformPointerType &vfield) {
@@ -80,25 +215,40 @@ void GSPolyAffineTransform<TScalar, NDimensions>::GetStationaryVieldCopyPasteDec
   FillBallShapedNeighborhoodIterator(radius, it);
   std::cout << "debug2!" << std::endl;
 
+  std::cout << "ScatterLabeledPointsIntoTrajectoryImage" << std::endl;
   ScatterLabeledPointsIntoTrajectoryImage(collision_time, m_C[collision_time].trajectoryImage, it);
+  PicslImageHelper::WriteResultImage<LabelImageType>(m_C[collision_time].trajectoryImage, "trajectory_mask.nii.gz");
 
   typename DistanceImageType::Pointer traj_dist_map;
   typename LabelImageType::Pointer traj_dist_map_label;
 
-  PicslImageHelper::WriteResultImage<LabelImageType>(m_C[collision_time].trajectoryImage, "trajectory_mask.nii.gz");
+  std::cout << "GetDistanceTransformFromLabelImage" << std::endl;
   GetDistanceTransformFromLabelImage(m_C[collision_time].trajectoryImage, m_C[collision_time].trajectoryDistanceImage, m_C[collision_time].trajectoryDistanceVoronoiImage);
-
   PicslImageHelper::WriteResultImage<DistanceImageType>(m_C[collision_time].trajectoryDistanceImage, "trajectory_mask_distance.nii.gz");
   PicslImageHelper::WriteResultImage<LabelImageType>(m_C[collision_time].trajectoryDistanceVoronoiImage, "trajectory_mask_distance_voronoi.nii.gz");
 
-  unsigned int voronoi_band_radius = ceil(m_InterTrajectoryDistThres / 2);
+  std::cout << "GetTrajectoryVoronoiBand" << std::endl;
+  unsigned int voronoi_band_radius = m_BandRadius; //ceil(m_InterTrajectoryDistThres * 2);
   GetTrajectoryVoronoiBand(m_C[collision_time].trajectoryDistanceVoronoiImage, voronoi_band_radius, m_C[collision_time].voronoiBandImage, m_C[collision_time].voronoiEdgeImage);
 
-  AssignWeightsToPointsInsideBand(m_C[collision_time].voronoiBandImage, m_C[collision_time].voronoiEdgeImage, collision_time);
+  std::cout << "AssignWeightsToPointsInsideBand2" << std::endl;
+//  AssignWeightsToPointsInsideBand(m_C[collision_time].voronoiBandImage, m_C[collision_time].voronoiEdgeImage, collision_time);
+  AssignWeightsToPointsInsideBand2(m_C[collision_time].voronoiBandImage, m_C[collision_time].voronoiEdgeImage, collision_time);
 
+  std::cout << "MixingVelocityFieldsFromEveryLabel" << std::endl;
   MixingVelocityFieldsFromEveryLabel(collision_time);
 
 
+  std::cout << "SuppressVelocityCloseToTrajectory" << std::endl;
+  SuppressVelocityCloseToTrajectory(collision_time);
+
+  std::cout << "SuppressVelocityCloseToBoundary" << std::endl;
+  SuppressVelocityCloseToBoundary(collision_time);
+
+  std::cout << "ScaleVelocityForExponential" << std::endl;
+  ScaleVelocityForExponential(collision_time);
+
+  std::cout << "velocityFieldTransform->IntegrateVelocityField();" << std::endl;
   m_C[collision_time].velocityFieldTransform->SetLowerTimeBound(1.0 * ind_t1 / m_NumberOfTimeSteps);
   // +1 here is a must since [0,24] out of 25 steps should map to [0,1]
   m_C[collision_time].velocityFieldTransform->SetUpperTimeBound(1.0 * (ind_t2+1) / m_NumberOfTimeSteps);
@@ -125,6 +275,177 @@ void GSPolyAffineTransform<TScalar, NDimensions>::GetStationaryVieldCopyPasteDec
 //  vfield->SetConstantVelocityField( displacementField );
 //
 }
+
+// seems ExponentialDisplacementFieldImageFilter cannot take time bound,
+template <class TScalar, unsigned int NDimensions>
+void GSPolyAffineTransform<TScalar, NDimensions>::
+ScaleVelocityForExponential(unsigned int collision_time)
+{
+  double t = (m_CollisionTimeList[collision_time+1] - m_CollisionTimeList[collision_time]) * 1.0 / m_NumberOfTimeSteps;
+  typename ConstantVelocityFieldType::Pointer vfield = m_C[collision_time].velocityFieldTransform->GetConstantVelocityField();
+  ImageRegionIterator<ConstantVelocityFieldType> vit(vfield, vfield->GetBufferedRegion());
+  for(vit.GoToBegin(); ! vit.IsAtEnd(); ++vit) {
+    vit.Value() *= t;
+  }
+
+}
+
+
+
+
+template <class TScalar, unsigned int NDimensions>
+void GSPolyAffineTransform<TScalar, NDimensions>::
+SuppressVelocityCloseToTrajectory(unsigned int collision_time)
+{
+  typename ConstantVelocityFieldType::Pointer vfield = m_C[collision_time].velocityFieldTransform->GetConstantVelocityField();
+  typename ConstantVelocityFieldType::RegionType bbox = vfield->GetLargestPossibleRegion();
+  ImageRegionIterator<ConstantVelocityFieldType> vit(vfield, bbox);
+  ImageRegionConstIterator<FloatImageType> wit(m_TrajectoryOfAllTimeWeightImage, bbox);
+
+  for(vit.GoToBegin(), wit.GoToBegin(); !vit.IsAtEnd(); ++vit, ++wit) {
+      vit.Value() *= wit.Value();
+  }
+
+}
+
+template <class TScalar, unsigned int NDimensions>
+void GSPolyAffineTransform<TScalar, NDimensions>::
+AssignWeightsToPointsInsideBand2(const BinaryImagePointerType &band, const BinaryImagePointerType &edge,
+    unsigned int collision_time)
+{
+
+  // try a new method instead of creating k kd-trees for each label k on all points in image.
+  // use an iterator and get all the points in its neighborhood
+  // only construct a vector for each unique label inside that neighborhood
+  // and find the minimal distance on each label
+
+
+//  const float band_radius_thres = m_InterTrajectoryDistThres;
+
+  unsigned int radius = m_BandRadius; // m_InterTrajectoryDistThres;
+  unsigned int nbAffine = m_LocalAffineList.size();
+
+  BinaryImagePointerType& edgeImage = m_C[collision_time].voronoiEdgeImage;
+  BinaryImagePointerType& bandImage = m_C[collision_time].voronoiBandImage;
+  LabelImagePointerType& voronoiImage = m_C[collision_time].trajectoryDistanceVoronoiImage;
+
+
+  // iterate over all points in band and query each kd-tree for closet distance to each label in voronoi
+  // first count number of voxels inside a band for allocate bandPointSampleVector
+  unsigned int nbPtsInBand = 0;
+  ImageRegionConstIterator<BinaryImageType> bit(bandImage, bandImage->GetBufferedRegion());
+  for(bit.GoToBegin(); !bit.IsAtEnd(); ++bit){
+    if (bit.Get()) nbPtsInBand++;
+  }
+
+  std::cout << "points in band: " << nbPtsInBand << std::endl;
+
+  BandPointSampleVector& bandPointSampleVector = m_C[collision_time].bandPointSampleVector;
+  bandPointSampleVector.clear();
+  bandPointSampleVector.resize(nbPtsInBand);
+
+  ImageRegionConstIterator<LabelImageType> voit(voronoiImage, voronoiImage->GetBufferedRegion());
+  Size<InputDimension> szradius;
+  szradius.Fill(radius);
+
+  NeighborhoodIterator<BinaryImageType, ConstantBoundaryCondition<BinaryImageType> > eit(szradius, edgeImage, edgeImage->GetBufferedRegion());
+  NeighborhoodIterator<LabelImageType, ConstantBoundaryCondition<LabelImageType> > vonit(szradius, voronoiImage, voronoiImage->GetBufferedRegion());
+  unsigned int neighborhod_size = eit.Size();
+
+  // for each pixel in band image: bit
+  // get the neighborhood of the edge image: eit
+  // construct the hash map for each new label out of eit
+  unsigned int idx = 0;
+  for( bit.GoToBegin(), eit.GoToBegin(), voit.GoToBegin(), vonit.GoToBegin(); !bit.IsAtEnd(); ++bit, ++eit, ++voit, ++vonit) {
+    if (bit.Get()) {
+
+      bandPointSampleVector[idx].neighbor_labels.clear();
+      bandPointSampleVector[idx].neighbor_distances.clear();
+      bandPointSampleVector[idx].neighbor_weights.clear();
+
+      typename LabelImageType::IndexType index = bit.GetIndex();
+      bandPointSampleVector[idx].index = index;
+      bandPointSampleVector[idx].label = voit.Get();
+
+      typedef typename std::vector<double> DistanceVector;
+      typedef typename std::map<LabelType, DistanceVector> DistanceVectorMap;
+      DistanceVectorMap distVecMap;
+       for (unsigned int i=0; i<neighborhod_size; i++) {
+         if (eit.GetPixel(i)) {
+           unsigned int elabel = vonit.GetPixel(i);
+           typename LabelImageType::IndexType eindex = vonit.GetIndex(i);
+           float distance_square = euclidean_distance_square(index, eindex);
+           distVecMap[elabel].push_back(distance_square);
+         }
+       }
+       // iterate over all active keys
+       typename DistanceVectorMap::iterator mapit;
+       for(mapit=distVecMap.begin(); mapit!=distVecMap.end(); ++mapit) {
+         const unsigned int& label = bandPointSampleVector[idx].label;
+         const unsigned int& elabel = (*mapit).first;
+         const DistanceVector& distvec = (*mapit).second;
+
+         double distance = *std::min_element(distvec.begin(), distvec.end());
+         distance = vcl_sqrt(distance);
+         // add label of the closets point in the edge, the polarized distance array for label elabel
+         bandPointSampleVector[idx].neighbor_labels.push_back(elabel);
+         double polarized_distance = (elabel == label) ? (-1*distance) : distance;
+         bandPointSampleVector[idx].neighbor_distances.push_back(polarized_distance);
+
+         float weight = compute_weight_from_distance_to_boundary(polarized_distance, m_BandRadius);
+         bandPointSampleVector[idx].neighbor_weights.push_back(weight);
+
+         // std::cout << "label=" << label << " from " << index << "to label=" << elabel << " found " << polarized_distance << " w=" << weight << std::endl;
+       }
+
+
+       // normalize the weight
+       unsigned int nbWeights = bandPointSampleVector[idx].neighbor_weights.size();
+       if (nbWeights==0) std::cout << "Weired!! nbWeights = 0 for index =" << bandPointSampleVector[idx].index << " and label=" <<  bandPointSampleVector[idx].label  << std::endl;
+       float wsum = 0.0;
+       for(unsigned int i=0; i<nbWeights; i++) wsum += bandPointSampleVector[idx].neighbor_weights[i];
+       // std::cout << "Wsum = " << wsum << " for index =" << bandPointSampleVector[idx].index << " and label=" <<  bandPointSampleVector[idx].label  << std::endl;
+       if (wsum <0.5) std::cout << "=======>Weired!! wsum <0.5 for index =" << bandPointSampleVector[idx].index << " and label=" <<  bandPointSampleVector[idx].label  << std::endl;
+       for(unsigned int i=0; i<nbWeights; i++) bandPointSampleVector[idx].neighbor_weights[i] /= wsum;
+
+       idx++;
+    }
+  }
+
+}
+
+
+template <class TScalar, unsigned int NDimensions>
+void GSPolyAffineTransform<TScalar, NDimensions>::SuppressVelocityCloseToBoundary(unsigned int collision_time)
+{
+  // for each pixel (x_k), compute distance d to the nearest boundary plane |x_k - b_k|, b_k=0, or, length along dim
+  //  k. Velocity v will be suppressed by a gaussian function: v *= gaussian(min(x_k-b_k) ^ 2, sigma)
+
+  typename ConstantVelocityFieldType::Pointer vfield = m_C[collision_time].velocityFieldTransform->GetConstantVelocityField();
+  typename ConstantVelocityFieldType::RegionType bbox = vfield->GetLargestPossibleRegion();
+  ImageRegionIteratorWithIndex<ConstantVelocityFieldType> vit(vfield, bbox);
+
+  float sigma = m_BoundarySigma;
+  int threesigma = ceil(3 * m_BoundarySigma);
+
+  for(vit.GoToBegin(); !vit.IsAtEnd(); ++vit) {
+    typename ConstantVelocityFieldType::IndexType index = vit.GetIndex();
+    // compute distance each of the dimension
+    std::vector<unsigned int> d(2*InputDimension, 1e6);
+    for(unsigned int k=0; k<InputDimension; k++) {
+      unsigned int d1 = abs(index[k] - bbox.GetIndex(k));
+      unsigned int d2 = abs(index[k] - bbox.GetUpperIndex()[k]);
+      d.push_back(d1);
+      d.push_back(d2);
+    }
+    unsigned int mind = *std::min_element(d.begin(), d.end());
+    if (mind < threesigma) { // only suppress when distance to boundary is small
+      double w = compute_boundary_suppresion_weight(mind, sigma);
+      vit.Value() *= w;
+    }
+  }
+}
+
 template <class TScalar, unsigned int NDimensions>
 void GSPolyAffineTransform<TScalar, NDimensions>::MixingVelocityFieldsFromEveryLabel(unsigned int collision_time)
 {
@@ -161,6 +482,8 @@ void GSPolyAffineTransform<TScalar, NDimensions>::MixingVelocityFieldsFromEveryL
       VelocityPixelType v = m_LocalAffineList[label_index]->GetVelocityAtPoint(point);
       vit.Set(v);
       ++nbPtsOutOfBand;
+
+      // std::cout << "in computing velocity:" << index << " v=" << v << std::endl;
     }
   }
 
@@ -178,14 +501,14 @@ void GSPolyAffineTransform<TScalar, NDimensions>::MixingVelocityFieldsFromEveryL
     unsigned int nbNoneZeroWeights = m_C[collision_time].bandPointSampleVector[i].neighbor_labels.size();
     VelocityPixelType v = NumericTraits<VelocityPixelType>::ZeroValue();
 
-    std::cout << "[" << i << "]";
+    // std::cout << "[" << i << "]";
     for(unsigned int k=0; k<nbNoneZeroWeights; k++) {
       unsigned int label_index = m_C[collision_time].bandPointSampleVector[i].neighbor_labels[k] - 1; //label_index = label - 1, for each affine
       float w = m_C[collision_time].bandPointSampleVector[i].neighbor_weights[k];
       v += m_LocalAffineList[label_index]->GetVelocityAtPoint(point) * w;
-      std::cout << m_LocalAffineList[label_index]->GetVelocityAtPoint(point) <<  "*" << w << "+";
+      // std::cout << m_LocalAffineList[label_index]->GetVelocityAtPoint(point) <<  "*" << w << "+";
     }
-    std::cout << " = " << v << std::endl;
+    // std::cout << " = " << v << std::endl;
     velocityFieldImage->SetPixel(index, v);
   }
 
@@ -550,7 +873,7 @@ bool GSPolyAffineTransform<TScalar, NDimensions>::AddSphereToLabelMask(LabelImag
 
   typename LabelImageType::RegionType bbox;
   typename LabelImageType::IndexType center, corner;
-  typename itk::ContinuousIndex<double, InputDimension> ccenter;
+  typename itk::ContinuousIndex<TScalar, InputDimension> ccenter;
   typename LabelImageType::OffsetType offset;
   typename LabelImageType::SizeType size;
 
@@ -726,6 +1049,7 @@ void GSPolyAffineTransform<TScalar, NDimensions>::ConvertAffineTransformsToLogar
 		laff->SetMatrix(aff->GetMatrix());
 		laff->SetOffset(aff->GetOffset());
 
+		std::cout << "before laff->GetVelocityMatrix(); laff = " << laff << std::endl;
 		// get velocity matrix
 		laff->GetVelocityMatrix();
 
@@ -743,12 +1067,17 @@ void GSPolyAffineTransform<TScalar, NDimensions>::ConvertAffineTransformsToLogar
 
 
 template <class TScalar, unsigned int NDimensions>
-void GSPolyAffineTransform<TScalar, NDimensions>::  SampleFromLabelMask(const LabelImagePointerType &labelImage, const SampleSpacingType &sample_spacing, PointVectorType &controlPointList, PointLabelVectorType &controlPointLabelList)
+void GSPolyAffineTransform<TScalar, NDimensions>::
+SampleFromLabelMask(const LabelImagePointerType &labelImage,
+    const SampleSpacingType &sample_spacing,
+    PointVectorType &controlPointList,
+    PointLabelVectorType &controlPointLabelList)
 {
 	typedef typename LabelImagePointerType::ObjectType LabelImageType;
 
 	typename LabelImageType::RegionType region = labelImage->GetLargestPossibleRegion();
 	typename LabelImageType::SizeType imgsz = region.GetSize();
+	typename LabelImageType::IndexType origin = region.GetIndex();
 	
 	// loop over x/y/z, only support 2D/3D
 	unsigned int dimz = (InputDimension > 2) ? imgsz[2] : 1;
@@ -762,27 +1091,31 @@ void GSPolyAffineTransform<TScalar, NDimensions>::  SampleFromLabelMask(const La
 	for(unsigned int i=0; i<InputDimension; i++)
 		spacing[i] = sample_spacing[i];
 
-	unsigned int nb_max_points = ceil(dimz * dimy * dimx / (sample_spacing[0] * sample_spacing[1] * sample_spacing[2]));
+	unsigned int nb_max_points;
+	if (InputDimension == 3) {
+	  nb_max_points = ceil(dimz * dimy * dimx / (sample_spacing[0] * sample_spacing[1] * sample_spacing[2]));
+	} else if (InputDimension == 2){
+	  nb_max_points = ceil(dimz * dimy * dimx / (sample_spacing[0] * sample_spacing[1]));
+	}
+
 
 	controlPointList.reserve(nb_max_points);
 	controlPointLabelList.reserve(nb_max_points);
 
 	typename LabelImageType::IndexType index;
 	for(unsigned int z = 0; z < dimz; z+= spacing[2]) {
-		if (InputDimension > 2)	index[2] = z;
+		if (InputDimension > 2)	index[2] = z + origin[2];
 		for(unsigned int y = 0; y < dimy; y+= spacing[1]) {
-			index[1] = y;
+			index[1] = y + origin[1];
 			for(unsigned int x = 0; x < dimx; x+= spacing[0]) {
-				index[0] = x;
+				index[0] = x + origin[0];
 				LabelType label = labelImage->GetPixel(index);
-
-				std::cout << "[x,y,z]" << x << "," << y << ',' << z << "=" << label << " dimz=" << dimz << std::endl;
-
 				if ( label > 0) {
 					InputPointType point;
 					labelImage->TransformIndexToPhysicalPoint(index, point);
 					controlPointList.push_back(point);
 					controlPointLabelList.push_back(label);
+					// std::cout << "[x,y,z]" << x << "," << y << ',' << z << "=" << label << " dimz=" << dimz << std::endl;
 				}
 			}
 		}
