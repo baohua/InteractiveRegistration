@@ -1093,9 +1093,9 @@ SampleFromLabelMask(const LabelImagePointerType &labelImage,
 
 	unsigned int nb_max_points;
 	if (InputDimension == 3) {
-	  nb_max_points = ceil(dimz * dimy * dimx / (sample_spacing[0] * sample_spacing[1] * sample_spacing[2]));
+	  nb_max_points = ceil((double)dimz * dimy * dimx / (sample_spacing[0] * sample_spacing[1] * sample_spacing[2]));
 	} else if (InputDimension == 2){
-	  nb_max_points = ceil(dimz * dimy * dimx / (sample_spacing[0] * sample_spacing[1]));
+	  nb_max_points = ceil((double)dimz * dimy * dimx / (sample_spacing[0] * sample_spacing[1]));
 	}
 
 

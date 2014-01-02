@@ -436,7 +436,7 @@ protected:
   void PrintSelf( std::ostream& os, Indent indent ) const{};
 
   /** Clone the current transform */
-  virtual typename LightObject::Pointer InternalClone() const{};
+  virtual typename LightObject::Pointer InternalClone() const{return Superclass::InternalClone();};
 
 
 private:

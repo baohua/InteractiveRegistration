@@ -187,7 +187,7 @@ int itkGSPolyAffineTransformTest(int argc, char **argv)
   std::cout << "start paff->ComputeFieldTransfromFromLocalAffineTransform();" << std::endl;
 
 	paff->ComputeFieldTransfromFromLocalAffineTransform();
-
+  return 0;
 }
 
 int main(int argc, char **argv)
